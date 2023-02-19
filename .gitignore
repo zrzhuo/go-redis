@@ -1,0 +1,15 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.test
+*.so
+*.dll
+*.aof
+*.rdb
+*.dylib
+
+# idea
+.idea
+*.iml
+
+logs
