@@ -2,7 +2,7 @@ package commands
 
 import _type "go-redis/interface/type"
 
-/* ---- Prepare: func(args _type.Args) ([]string, []string) ----- */
+/*----- Prepare: func(args _type.Args) ([]string, []string) -----*/
 
 func readFirstKey(args _type.Args) ([]string, []string) {
 	key := string(args[0])
@@ -20,4 +20,12 @@ func writeAllKeys(args _type.Args) ([]string, []string) {
 		keys[i] = string(key)
 	}
 	return keys, nil
+}
+
+func readAllKeys(args _type.Args) ([]string, []string) {
+	keys := make([]string, len(args))
+	for i, key := range args {
+		keys[i] = string(key)
+	}
+	return nil, keys
 }

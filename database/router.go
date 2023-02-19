@@ -6,24 +6,24 @@ import (
 	"strings"
 )
 
+const (
+	ReadWrite = 0
+	ReadOnly  = 1
+)
+
 type Execute func(db *Database, args _type.Args) _interface.Reply
 
 type Prepare func(args _type.Args) ([]string, []string)
 
-//type Undo func(db *Database, args _type.Args) []_type.CmdLine
+type Undo func(db *Database, args _type.Args) []_type.CmdLine
 
 type command struct {
 	Execute Execute
 	Prepare Prepare
 	//undo     Undo
-	Arity  int // allow number of args, Arity < 0 means len(args) >= -arity
+	Arity  int // 大于等于零时表示参数个数，小于零时表示参数个数的最小值
 	Status int
 }
-
-const (
-	ReadWrite = 0
-	ReadOnly  = 1
-)
 
 // Commands 存放所有命令
 var Commands = make(map[string]*command)

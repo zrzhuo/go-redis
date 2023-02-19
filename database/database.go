@@ -43,7 +43,7 @@ func (db *Database) Execute(redisConn _interface.Connection, cmdLine _type.CmdLi
 }
 
 func (db *Database) execCommand(cmdLine _type.CmdLine) _interface.Reply {
-	cmdName := strings.ToLower(string(cmdLine[0]))
+	cmdName := strings.ToLower(string(cmdLine[0])) // 获取命令
 	cmd, ok := Commands[cmdName]
 	// 是否存在该命令
 	if !ok {
@@ -53,7 +53,7 @@ func (db *Database) execCommand(cmdLine _type.CmdLine) _interface.Reply {
 	if !checkArity(cmd.Arity, cmdLine) {
 		return reply.MakeArgNumErrReply(cmdName)
 	}
-	args := _type.Args(cmdLine[1:])
+	args := _type.Args(cmdLine[1:]) // 获取参数
 	writeKeys, readKeys := cmd.Prepare(args)
 	//db.addVersion(writeKeys...)
 	// 加锁
@@ -62,6 +62,7 @@ func (db *Database) execCommand(cmdLine _type.CmdLine) _interface.Reply {
 	return cmd.Execute(db, args)
 }
 
+// 检查参数个数是否满足要求
 func checkArity(arity int, cmdLine _type.CmdLine) bool {
 	argNum := len(cmdLine)
 	if arity >= 0 {

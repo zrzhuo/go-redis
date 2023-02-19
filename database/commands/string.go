@@ -9,11 +9,11 @@ import (
 
 // 注册命令
 func init() {
-	database.RegisterCommand("Set", setExec, writeFirstKey, -3, database.ReadWrite)
-	//database.RegisterCommand("SetNX", setExec, 3, database.ReadWrite)
-	//database.RegisterCommand("SetEX", setExec, 4, database.ReadWrite)
-	database.RegisterCommand("Get", getExec, readFirstKey, 2, database.ReadOnly)
-	//database.RegisterCommand("GetNX", setExec, -3, database.ReadWrite)
+	database.RegisterCommand("Set", execSet, writeFirstKey, -3, database.ReadWrite)
+	//database.RegisterCommand("SetNX", execSet, 3, database.ReadWrite)
+	//database.RegisterCommand("SetEX", execSet, 4, database.ReadWrite)
+	database.RegisterCommand("Get", execGet, readFirstKey, 2, database.ReadOnly)
+	//database.RegisterCommand("GetNX", execSet, -3, database.ReadWrite)
 }
 
 func getAsString(db *database.Database, key string) ([]byte, _interface.Reply) {
@@ -28,7 +28,7 @@ func getAsString(db *database.Database, key string) ([]byte, _interface.Reply) {
 	return bytes, nil
 }
 
-func setExec(db *database.Database, args _type.Args) _interface.Reply {
+func execSet(db *database.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	entity := &_type.Entity{
 		Data: args[1],
@@ -40,7 +40,7 @@ func setExec(db *database.Database, args _type.Args) _interface.Reply {
 	return &reply.NullBulkReply{}
 }
 
-func getExec(db *database.Database, args _type.Args) _interface.Reply {
+func execGet(db *database.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	bytes, errReply := getAsString(db, key)
 	if errReply != nil {
