@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-const pageSize = 3 // page的大小, 必须设置为偶数
+const pageSize = 4 // page的大小, 必须设置为偶数
 
 type Page[T any] []T // T的切片
 
@@ -34,7 +34,7 @@ func (list *QuickList[T]) Add(val T) {
 	list.size++
 	if list.data.Len() == 0 {
 		// 表为空时
-		newPage := make([]T, 0, pageSize)
+		newPage := make(Page[T], 0, pageSize)
 		newPage = append(newPage, val)
 		list.data.Add(newPage)
 		return
@@ -42,7 +42,7 @@ func (list *QuickList[T]) Add(val T) {
 	lastPage := list.data.GetLast()
 	if len(lastPage) == cap(lastPage) {
 		// lastPage已满，新建page
-		newPage := make([]T, 0, pageSize)
+		newPage := make(Page[T], 0, pageSize)
 		newPage = append(newPage, val)
 		list.data.Add(newPage)
 		return
@@ -64,6 +64,7 @@ func (list *QuickList[T]) Set(idx int, val T) {
 	if list == nil {
 		panic("this QuickList is nil.")
 	}
+	list.boundCheck(idx)
 	iter := list.find(idx)
 	iter.set(val)
 }
@@ -72,62 +73,58 @@ func (list *QuickList[T]) Insert(idx int, val T) {
 	if list == nil {
 		panic("this QuickList is nil.")
 	}
+	if idx < 0 || idx > list.size {
+		panic(fmt.Sprintf("the insert index %d out of bound of [0, %d]", idx, list.size))
+	}
 	if idx == list.size {
 		list.Add(val) // 添加到末尾
 		return
 	}
+	// 0 <= idx < list.size
 	iter := list.find(idx)
 	page := iter.node.val
 	if len(page) < pageSize {
 		// 当前页未满
-		offset := iter.idx
-		page = append(page[:offset+1], page[offset:]...) // 空出page[idx]的位置
-		page[iter.idx] = val
+		i := iter.idx
+		page = append(page[:i+1], page[i:]...) // 空出page[i]的位置
+		page[i] = val
 		iter.node.val = page
 		list.size++
 		return
 	}
-	// insert into a full Page may cause memory copy, so we split a full Page into two half pages
-	// 当前页已满，将当前页均分为两个页
+	// 当前页已满，将当前页均分为两个页 (insert into a full Page may cause memory copy)
 	var nextPage Page[T]
 	nextPage = append(nextPage, page[pageSize/2:]...)
 	page = page[:pageSize/2]
 	if iter.idx < len(page) {
-		offset := iter.idx
-		page = append(page[:offset+1], page[offset:]...) // 空出page[idx]的位置
-		page[iter.idx] = val
+		i := iter.idx
+		page = append(page[:i+1], page[i:]...) // 空出page[i]的位置
+		page[i] = val
 	} else {
-		offset := iter.idx - pageSize/2
-		nextPage = append(nextPage[:offset+1], nextPage[offset:]...) // 空出page[idx]的位置
-		nextPage[offset] = val
+		i := iter.idx - pageSize/2
+		nextPage = append(nextPage[:i+1], nextPage[i:]...) // 空出page[i]的位置
+		nextPage[i] = val
 	}
 	iter.node.val = page
-	// 将nextPage插入到iter.node之后
-	list.data.insertAfter(iter.node, nextPage)
+	list.data.insertAfter(iter.node, nextPage) // 将nextPage插入到iter.node之后
 	list.size++
 }
 
 func (list *QuickList[T]) Remove(idx int) T {
+	list.boundCheck(idx)
 	iter := list.find(idx)
 	return iter.remove()
 }
-
-//RemoveAll(condition Condition[T]) int              //  移除所有满足条件的元素，并返回其个数
-//RemoveLeft(condition Condition[T], count int) int  // 从左到右移除指定数量的元素，并返回实际移除的个数
-//RemoveRight(condition Condition[T], count int) int // 从右到左移除指定数量的元素，并返回实际移除的个数
 
 func (list *QuickList[T]) RemoveAll(condition Condition[T]) int {
 	if list == nil {
 		panic("this QuickList is nil.")
 	}
-	if list.size == 0 {
-		return 0
-	}
-	count := 0
-	iter := list.find(0)
-	if !iter.outEnd() {
+	list.boundCheck(0)
+	iter, count := list.find(0), 0
+	for !iter.outEnd() {
 		if condition(iter.get()) {
-			iter.remove()
+			iter.remove() // 移除并next
 			count++
 		} else {
 			iter.next()
@@ -136,29 +133,88 @@ func (list *QuickList[T]) RemoveAll(condition Condition[T]) int {
 	return count
 }
 
+func (list *QuickList[T]) RemoveLeft(condition Condition[T], num int) int {
+	if list == nil {
+		panic("this QuickList is nil.")
+	}
+	list.boundCheck(0)
+	iter, count := list.find(0), 0
+	for !iter.outEnd() && count < num {
+		if condition(iter.get()) {
+			iter.remove() // 移除并next
+			count++
+		} else {
+			iter.next()
+		}
+	}
+	return count
+
+}
+
+func (list *QuickList[T]) RemoveRight(condition Condition[T], num int) int {
+	if list == nil {
+		panic("this QuickList is nil.")
+	}
+	list.boundCheck(list.size - 1)
+	iter, count := list.find(list.size-1), 0
+	for !iter.outBegin() && count < num {
+		if condition(iter.get()) {
+			iter.remove() // 移除并next
+			iter.prev()   // 再prev
+			count++
+		} else {
+			iter.prev()
+		}
+	}
+	return count
+}
+
+func (list *QuickList[T]) Contains(condition Condition[T]) bool {
+	if list == nil {
+		panic("this QuickList is nil.")
+	}
+	list.boundCheck(0)
+	iter := list.find(0)
+	for !iter.outEnd() {
+		if condition(iter.get()) {
+			return true
+		}
+		iter.next()
+	}
+	return false
+}
+
+func (list *QuickList[T]) Range(start int, stop int) []T {
+	if list == nil {
+		panic("this QuickList is nil.")
+	}
+	if start < 0 || start >= list.size {
+		panic(fmt.Sprintf("the start index %d out of bound", start))
+	}
+	if stop < start || start > list.size {
+		panic(fmt.Sprintf("the stop index %d out of bound", stop))
+	}
+	size := stop - start
+	result := make([]T, size)
+	iter := list.find(start)
+	for i := 0; i < size; i++ {
+		result[i] = iter.get()
+		iter.next()
+	}
+	return result
+}
+
 func (list *QuickList[T]) ForEach(consumer Consumer[T]) {
 	if list == nil {
 		panic("this QuickList is nil.")
 	}
-	if list.size == 0 {
-		return
-	}
-	idx := 0
-	iter := list.find(0)
-	for {
+	iter, idx := list.find(0), 0
+	for !iter.outEnd() {
 		if !consumer(idx, iter.get()) {
 			break
 		}
-		if !iter.next() {
-			break
-		}
+		iter.next()
 		idx++
-	}
-}
-
-func (list *QuickList[T]) boundCheck(idx int) {
-	if idx < 0 || idx >= list.size {
-		panic(fmt.Sprintf("the index %d out of bound of [0, %d]", idx, list.size-1))
 	}
 }
 
@@ -199,5 +255,11 @@ func (list *QuickList[T]) find(idx int) *iterator[T] {
 		list: list,
 		node: curNode,
 		idx:  idx - offset,
+	}
+}
+
+func (list *QuickList[T]) boundCheck(idx int) {
+	if idx < 0 || idx >= list.size {
+		panic(fmt.Sprintf("the index %d out of bound of [0, %d]", idx, list.size-1))
 	}
 }

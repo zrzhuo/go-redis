@@ -150,13 +150,13 @@ func (list *DLinkedList[T]) RemoveAll(condition Condition[T]) int {
 	}
 	return cnt
 }
-func (list *DLinkedList[T]) RemoveLeft(condition Condition[T], count int) int {
+func (list *DLinkedList[T]) RemoveLeft(condition Condition[T], num int) int {
 	if list == nil {
 		panic("this DLinkedList is nil.")
 	}
 	p, cnt := list.head, 0
 	var nextNode *Node[T]
-	for p != nil && cnt < count {
+	for p != nil && cnt < num {
 		nextNode = p.next
 		if condition(p.val) {
 			list.removeNode(p)
@@ -166,13 +166,13 @@ func (list *DLinkedList[T]) RemoveLeft(condition Condition[T], count int) int {
 	}
 	return cnt
 }
-func (list *DLinkedList[T]) RemoveRight(condition Condition[T], count int) int {
+func (list *DLinkedList[T]) RemoveRight(condition Condition[T], num int) int {
 	if list == nil {
 		panic("this DLinkedList is nil.")
 	}
 	p, cnt := list.tail, 0
 	var nextNode *Node[T]
-	for p != nil && cnt < count {
+	for p != nil && cnt < num {
 		nextNode = p.prev
 		if condition(p.val) {
 			list.removeNode(p)
