@@ -5,17 +5,17 @@ import (
 	"strings"
 )
 
-// 结点定义
-type node[T any] struct {
+// Node DLinkedList的结点
+type Node[T any] struct {
 	val  T        // 结点值
-	prev *node[T] // 指向前一个节点
-	next *node[T] // 指向后一个节点
+	prev *Node[T] // 指向前一个节点
+	next *Node[T] // 指向后一个节点
 }
 
 // DLinkedList 链表定义
 type DLinkedList[T any] struct {
-	head *node[T] // 指向第一个结点
-	tail *node[T] // 指向最后一个结点
+	head *Node[T] // 指向第一个结点
+	tail *Node[T] // 指向最后一个结点
 	size int      // 链表当前含有的结点数
 }
 
@@ -38,7 +38,7 @@ func (list *DLinkedList[T]) Add(val T) {
 	if list == nil {
 		panic("this DLinkedList is nil.")
 	}
-	var curr = new(node[T])
+	var curr = new(Node[T])
 	curr.val = val
 	if list.head == nil {
 		// 链表为空时
@@ -104,10 +104,24 @@ func (list *DLinkedList[T]) Insert(idx int, val T) {
 	if idx < 0 || idx > list.size {
 		panic(fmt.Sprintf("the insert index %d out of bound of [0, %d]", idx, list.size))
 	}
-	cur := new(node[T])
+	cur := new(Node[T])
 	cur.val = val
 	list.insertNode(idx, cur)
 	list.size++
+}
+
+func (list *DLinkedList[T]) insertAfter(node *Node[T], val T) {
+	if list == nil {
+		panic("this DLinkedList is nil.")
+	}
+	if node == nil {
+		panic("this node is nil")
+	}
+	cur := new(Node[T])
+	cur.val = val
+	cur.next = node.next
+	node.next = cur
+	cur.prev = node
 }
 
 func (list *DLinkedList[T]) Remove(idx int) T {
@@ -125,7 +139,7 @@ func (list *DLinkedList[T]) RemoveAll(condition Condition[T]) int {
 		panic("this DLinkedList is nil.")
 	}
 	p, cnt := list.head, 0
-	var nextNode *node[T]
+	var nextNode *Node[T]
 	for p != nil {
 		nextNode = p.next
 		if condition(p.val) {
@@ -141,7 +155,7 @@ func (list *DLinkedList[T]) RemoveLeft(condition Condition[T], count int) int {
 		panic("this DLinkedList is nil.")
 	}
 	p, cnt := list.head, 0
-	var nextNode *node[T]
+	var nextNode *Node[T]
 	for p != nil && cnt < count {
 		nextNode = p.next
 		if condition(p.val) {
@@ -157,7 +171,7 @@ func (list *DLinkedList[T]) RemoveRight(condition Condition[T], count int) int {
 		panic("this DLinkedList is nil.")
 	}
 	p, cnt := list.tail, 0
-	var nextNode *node[T]
+	var nextNode *Node[T]
 	for p != nil && cnt < count {
 		nextNode = p.prev
 		if condition(p.val) {
@@ -212,8 +226,7 @@ func (list *DLinkedList[T]) ForEach(consumer Consumer[T]) {
 	}
 	p, i := list.head, 0
 	for p != nil {
-		var hasNext = consumer(i, p.val) // 消费，并判断是否继续
-		if !hasNext {
+		if !consumer(i, p.val) {
 			break
 		}
 		p = p.next
@@ -228,7 +241,7 @@ func (list *DLinkedList[T]) boundCheck(idx int) {
 }
 
 // 寻找指定下标的结点，返回其指针
-func (list *DLinkedList[T]) find(idx int) (p *node[T]) {
+func (list *DLinkedList[T]) find(idx int) (p *Node[T]) {
 	if idx < list.size/2 {
 		p = list.head
 		for i := 0; i < idx; i++ {
@@ -244,7 +257,7 @@ func (list *DLinkedList[T]) find(idx int) (p *node[T]) {
 }
 
 // 指定下标插入一个结点
-func (list *DLinkedList[T]) insertNode(idx int, cur *node[T]) {
+func (list *DLinkedList[T]) insertNode(idx int, cur *Node[T]) {
 	if list.size == 0 {
 		// 空链表
 		list.head = cur
@@ -272,7 +285,7 @@ func (list *DLinkedList[T]) insertNode(idx int, cur *node[T]) {
 }
 
 // 删除指定结点
-func (list *DLinkedList[T]) removeNode(cur *node[T]) {
+func (list *DLinkedList[T]) removeNode(cur *Node[T]) {
 	if cur.prev == nil {
 		list.head = cur.next
 		list.head.prev = nil
