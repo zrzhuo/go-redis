@@ -15,7 +15,3 @@ type Dict[K comparable, V any] interface {
 }
 
 type Consumer[K comparable, V any] func(key K, val V) bool
-
-type Hashable interface {
-	comparable
-}

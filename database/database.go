@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"go-redis/database/datastruct/dict"
+	List "go-redis/database/datastruct/list"
 	"go-redis/database/datastruct/lock"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
@@ -30,9 +31,9 @@ type Database struct {
 func MakeDatabase(idx int) *Database {
 	database := &Database{
 		idx:     idx,
-		data:    dict.MakeConcurrent[string, *_type.Entity](dataSize),
-		ttl:     dict.MakeConcurrent[string, time.Time](ttlSize),
-		version: dict.MakeConcurrent[string, uint32](dataSize),
+		data:    dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
+		ttl:     dict.MakeConcurrentDict[string, time.Time](ttlSize),
+		version: dict.MakeConcurrentDict[string, uint32](dataSize),
 		locker:  lock.MakeLocks(lockerSize),
 	}
 	return database
@@ -71,7 +72,7 @@ func checkArity(arity int, cmdLine _type.CmdLine) bool {
 	return argNum >= -arity
 }
 
-/* ---- Lock ----- */
+/* ----- Lock ----- */
 
 // RWLocks lock keys for writing and reading
 func (db *Database) RWLocks(writeKeys []string, readKeys []string) {
@@ -83,7 +84,49 @@ func (db *Database) RWUnLocks(writeKeys []string, readKeys []string) {
 	db.locker.RWUnLocks(writeKeys, readKeys)
 }
 
-/* ---- Entity ----- */
+/* ----- Time To Live ----- */
+
+func (db *Database) SetExpire(key string, expire time.Time) {
+	db.ttl.Put(key, expire)
+	taskKey := "expire:" + key
+	// 创建定时任务
+	timewheel.At(expire, taskKey, func() {
+		keys := []string{key}
+		// 上锁
+		db.RWLocks(keys, nil)
+		defer db.RWUnLocks(keys, nil)
+		logger.Info(fmt.Sprintf("key '%s' expired", key))
+		expireTime, ok := db.ttl.Get(key)
+		if !ok {
+			return
+		}
+		// 由于过期时间可能被更新，故需要再次检查是否过期
+		isExpired := time.Now().After(expireTime)
+		if isExpired {
+			db.Remove(key)
+		}
+	})
+}
+
+func (db *Database) cancelExpire(key string) {
+	db.ttl.Remove(key)
+	taskKey := "expire:" + key
+	timewheel.Cancel(taskKey)
+}
+
+func (db *Database) IsExpired(key string) bool {
+	expire, ok := db.ttl.Get(key)
+	if !ok {
+		return false // 未设置过期时间
+	}
+	isExpired := time.Now().After(expire)
+	if isExpired {
+		db.Remove(key)
+	}
+	return isExpired
+}
+
+/* ----- Entity Operation ----- */
 
 func (db *Database) GetEntity(key string) (*_type.Entity, bool) {
 	entity, ok := db.data.Get(key)
@@ -133,44 +176,47 @@ func (db *Database) Flush() {
 	db.locker = lock.MakeLocks(lockerSize) // 重置锁
 }
 
-/* ---- Time To Live ---- */
+/* ----- Get Entity ----- */
 
-func (db *Database) SetExpire(key string, expire time.Time) {
-	db.ttl.Put(key, expire)
-	taskKey := "expire:" + key
-	// 创建定时任务
-	timewheel.At(expire, taskKey, func() {
-		keys := []string{key}
-		// 上锁
-		db.RWLocks(keys, nil)
-		defer db.RWUnLocks(keys, nil)
-		logger.Info(fmt.Sprintf("key '%s' expired", key))
-		expireTime, ok := db.ttl.Get(key)
-		if !ok {
-			return
-		}
-		// 由于过期时间可能被更新，故需要再次检查是否过期
-		isExpired := time.Now().After(expireTime)
-		if isExpired {
-			db.Remove(key)
-		}
-	})
-}
-
-func (db *Database) cancelExpire(key string) {
-	db.ttl.Remove(key)
-	taskKey := "expire:" + key
-	timewheel.Cancel(taskKey)
-}
-
-func (db *Database) IsExpired(key string) bool {
-	expire, ok := db.ttl.Get(key)
+func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
+	entity, ok := db.GetEntity(key)
 	if !ok {
-		return false // 未设置过期时间
+		return nil, nil
 	}
-	isExpired := time.Now().After(expire)
-	if isExpired {
-		db.Remove(key)
+	bytes, ok := entity.Data.([]byte)
+	if !ok {
+		return nil, reply.MakeWrongTypeErrReply()
 	}
-	return isExpired
+	return bytes, nil
+}
+
+func (db *Database) GetList(key string) (List.List[[]byte], _interface.ErrorReply) {
+	entity, ok := db.GetEntity(key)
+	if !ok {
+		return nil, nil
+	}
+	list, ok := entity.Data.(List.List[[]byte])
+	if !ok {
+		return nil, reply.MakeWrongTypeErrReply()
+	}
+	return list, nil
+}
+
+/* ----- Get or Init Entity ----- */
+
+func (db *Database) GetOrInitList(key string) (list List.List[[]byte], isNew bool, errReply _interface.ErrorReply) {
+	list, errReply = db.GetList(key)
+	if errReply != nil {
+		return nil, false, errReply // WrongTypeErrReply
+	}
+	isNew = false
+	if list == nil {
+		// 初始化list
+		list = List.MakeQuickList[[]byte]()
+		entity := _type.NewEntity(list)
+		db.PutEntity(key, entity)
+		isNew = true
+	}
+	return list, isNew, nil
+
 }

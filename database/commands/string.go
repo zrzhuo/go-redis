@@ -16,23 +16,9 @@ func init() {
 	//database.RegisterCommand("GetNX", execSet, -3, database.ReadWrite)
 }
 
-func getAsString(db *database.Database, key string) ([]byte, _interface.Reply) {
-	entity, ok := db.GetEntity(key)
-	if !ok {
-		return nil, &reply.NullBulkReply{}
-	}
-	bytes, ok := entity.Data.([]byte)
-	if !ok {
-		return nil, &reply.WrongTypeErrReply{}
-	}
-	return bytes, nil
-}
-
 func execSet(db *database.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	entity := &_type.Entity{
-		Data: args[1],
-	}
+	entity := _type.NewEntity(args[1])
 	result := db.PutEntity(key, entity)
 	if result > 0 {
 		return &reply.OkReply{}
@@ -42,7 +28,7 @@ func execSet(db *database.Database, args _type.Args) _interface.Reply {
 
 func execGet(db *database.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	bytes, errReply := getAsString(db, key)
+	bytes, errReply := db.GetString(key)
 	if errReply != nil {
 		return errReply
 	}

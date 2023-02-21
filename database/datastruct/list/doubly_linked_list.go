@@ -110,18 +110,22 @@ func (list *DLinkedList[T]) Insert(idx int, val T) {
 	list.size++
 }
 
-func (list *DLinkedList[T]) insertAfter(node *Node[T], val T) {
+func (list *DLinkedList[T]) InsertAfter(preNode *Node[T], val T) {
 	if list == nil {
 		panic("this DLinkedList is nil.")
 	}
-	if node == nil {
-		panic("this node is nil")
+	if preNode == nil {
+		panic("this preNode is nil")
 	}
-	cur := new(Node[T])
-	cur.val = val
-	cur.next = node.next
-	node.next = cur
-	cur.prev = node
+	newNode := new(Node[T])
+	newNode.val = val
+	newNode.next = preNode.next
+	preNode.next = newNode
+	newNode.prev = preNode
+	// 添加位置为末尾时，更新tail
+	if preNode == list.tail {
+		list.tail = newNode
+	}
 }
 
 func (list *DLinkedList[T]) Remove(idx int) T {
@@ -286,19 +290,27 @@ func (list *DLinkedList[T]) insertNode(idx int, cur *Node[T]) {
 
 // 删除指定结点
 func (list *DLinkedList[T]) removeNode(cur *Node[T]) {
-	if cur.prev == nil {
+	if cur == list.head && cur == list.tail {
+		// 即是头结点又是尾结点
+		list.head = nil
+		list.tail = nil
+	} else if cur == list.head {
+		// 当前结点是头结点
 		list.head = cur.next
 		list.head.prev = nil
-	} else if cur.next == nil {
+	} else if cur == list.tail {
+		// 当前结点是尾结点
 		list.tail = cur.prev
 		list.tail.next = nil
 	} else {
+		// 其他结点
 		cur.prev.next = cur.next
 		cur.next.prev = cur.prev
 	}
 	// 指针置空，方便垃圾回收
 	cur.next = nil
 	cur.prev = nil
+	list.size--
 }
 
 func (list *DLinkedList[T]) String() string {

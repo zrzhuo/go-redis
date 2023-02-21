@@ -56,7 +56,7 @@ func computeCapacity(param int32) (size int32) {
 	return n + 1
 }
 
-func MakeConcurrent[K comparable, V any](shardCount int32) *ConcurrentDict[K, V] {
+func MakeConcurrentDict[K comparable, V any](shardCount int32) *ConcurrentDict[K, V] {
 	shardCount = computeCapacity(shardCount)
 	table := make([]*shard[K, V], shardCount)
 	for i := int32(0); i < shardCount; i++ {
@@ -250,5 +250,5 @@ func (dict *ConcurrentDict[K, V]) ForEach(consumer Consumer[K, V]) {
 
 func (dict *ConcurrentDict[K, V]) Clear() {
 	checkNilDict(dict)
-	*dict = *MakeConcurrent[K, V](dict.shardCount)
+	*dict = *MakeConcurrentDict[K, V](dict.shardCount)
 }

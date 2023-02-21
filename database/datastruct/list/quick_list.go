@@ -106,7 +106,7 @@ func (list *QuickList[T]) Insert(idx int, val T) {
 		nextPage[i] = val
 	}
 	iter.node.val = page
-	list.data.insertAfter(iter.node, nextPage) // 将nextPage插入到iter.node之后
+	list.data.InsertAfter(iter.node, nextPage) // 将nextPage插入到iter.node之后
 	list.size++
 }
 

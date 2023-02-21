@@ -113,9 +113,10 @@ func (iter *iterator[T]) remove() T {
 			iter.idx = 0
 		} else {
 			// 当前已位于最后一页
-			iter.list.data.removeNode(iter.node)
-			iter.node = iter.list.data.tail
-			iter.idx = len(iter.list.data.tail.val) // OutEnd
+			iter.list.data.removeNode(iter.node) // 移除本页
+			// 此时list.data中无结点，list为空
+			iter.node = nil
+			iter.idx = 0
 		}
 	}
 	iter.list.size--
