@@ -1,4 +1,4 @@
-package skiplist
+package list
 
 import (
 	"fmt"
@@ -10,29 +10,29 @@ const (
 	maxLevel = 16
 )
 
-type compare[T any] func(T, T) int // 用于比较的函数
+type Compare[T comparable] func(T, T) int // 用于比较的函数
 
-type skipLevel[T any] struct {
+type skipLevel[T comparable] struct {
 	next *skipNode[T] // 指向该层索引的下一个结点
-	span int64        // 该层索引的跨度
+	span int          // 该层索引的跨度
 }
 
-type skipNode[T any] struct {
+type skipNode[T comparable] struct {
 	Member T
 	Score  int64
 	prev   *skipNode[T]    // 指向前一个结点
 	levels []*skipLevel[T] // 索引，level[0]跨度为1
 }
 
-type SkipList[T any] struct {
+type SkipList[T comparable] struct {
 	header *skipNode[T] // 虚拟结点，其levels中的next指向实际结点，score为最小值0
 	tail   *skipNode[T] // 直接指向最后一个结点
-	size   int64        // 结点数量
+	size   int          // 结点数量
 	level  int16        // 最大索引层级
-	comp   compare[T]   // 比较member的函数
+	comp   Compare[T]   // 比较member的函数
 }
 
-func newSkipNode[T any](level int16, score int64, member T) *skipNode[T] {
+func newSkipNode[T comparable](level int16, score int64, member T) *skipNode[T] {
 	node := &skipNode[T]{
 		Member: member,
 		Score:  score,
@@ -44,13 +44,13 @@ func newSkipNode[T any](level int16, score int64, member T) *skipNode[T] {
 	return node
 }
 
-func MakeSkiplist[T any](comp compare[T]) *SkipList[T] {
+func MakeSkiplist[T comparable](comp Compare[T]) *SkipList[T] {
+	var null T
 	return &SkipList[T]{
-		header: newSkipNode[T](maxLevel, 0, nil), // 头结点的score为0
-		tail:   nil,                              // 尾指针指向nil
-		size:   0,                                // 长度为0
-		level:  1,                                // 初始为1
-		comp:   comp,                             // 比较函数
+		header: newSkipNode[T](maxLevel, 0, null), // 头结点的score为0
+		tail:   nil,                               // 尾指针指向nil
+		level:  1,                                 // 初始为1
+		comp:   comp,                              // 比较函数
 	}
 }
 
@@ -66,9 +66,16 @@ func (sl *SkipList[T]) print() {
 	}
 }
 
+func (sl *SkipList[T]) Len() int {
+	if sl == nil {
+		panic("this SkipList is nil.")
+	}
+	return sl.size
+}
+
 func (sl *SkipList[T]) Insert(member T, score int64) {
 	prevs := make([]*skipNode[T], maxLevel) // 记录新结点在每一层中的插入位置，即新结点在该层索引中的前置结点
-	ranks := make([]int64, maxLevel)        // 记录新结点在每一层中的rank（第一个实际结点的rank为0）
+	ranks := make([]int, maxLevel)          // 记录新结点在每一层中的rank（第一个实际结点的rank为0）
 
 	// 1、寻找插入位置
 	prevNode := sl.header
@@ -110,7 +117,7 @@ func (sl *SkipList[T]) Insert(member T, score int64) {
 	sl.insertNode(newNode, prevs, ranks)
 }
 
-func (sl *SkipList[T]) insertNode(tarNode *skipNode[T], prevs []*skipNode[T], ranks []int64) {
+func (sl *SkipList[T]) insertNode(tarNode *skipNode[T], prevs []*skipNode[T], ranks []int) {
 	level := int16(len(tarNode.levels))
 	// 连接next、更新span
 	for i := int16(0); i < level; i++ {
@@ -188,13 +195,6 @@ func (sl *SkipList[T]) removeNode(tarNode *skipNode[T], prevs []*skipNode[T]) {
 	}
 	// 长度减1
 	sl.size--
-}
-
-func (sl *SkipList[T]) GetFirstMember() (member any, ok bool) {
-	if sl.size > 0 {
-		return sl.header.levels[0].next.Member, true
-	}
-	return nil, false
 }
 
 ///*
