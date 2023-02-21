@@ -1,4 +1,4 @@
-package list
+package zset
 
 import (
 	"testing"

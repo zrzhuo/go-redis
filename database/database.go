@@ -2,9 +2,10 @@ package database
 
 import (
 	"fmt"
-	"go-redis/database/datastruct/dict"
+	Dict "go-redis/database/datastruct/dict"
 	List "go-redis/database/datastruct/list"
 	"go-redis/database/datastruct/lock"
+	ZSet "go-redis/database/datastruct/zset"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
 	"go-redis/redis/resp/reply"
@@ -22,18 +23,18 @@ const (
 
 type Database struct {
 	idx     int                              // 数据库编号
-	data    dict.Dict[string, *_type.Entity] // 数据
-	ttl     dict.Dict[string, time.Time]     // 超时时间
-	version dict.Dict[string, uint32]        // 版本
+	data    Dict.Dict[string, *_type.Entity] // 数据
+	ttl     Dict.Dict[string, time.Time]     // 超时时间
+	version Dict.Dict[string, uint32]        // 版本
 	locker  *lock.Locks                      // 锁
 }
 
 func MakeDatabase(idx int) *Database {
 	database := &Database{
 		idx:     idx,
-		data:    dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
-		ttl:     dict.MakeConcurrentDict[string, time.Time](ttlSize),
-		version: dict.MakeConcurrentDict[string, uint32](dataSize),
+		data:    Dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
+		ttl:     Dict.MakeConcurrentDict[string, time.Time](ttlSize),
+		version: Dict.MakeConcurrentDict[string, uint32](dataSize),
 		locker:  lock.MakeLocks(lockerSize),
 	}
 	return database
@@ -179,8 +180,8 @@ func (db *Database) Flush() {
 /* ----- Get Entity ----- */
 
 func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
-	entity, ok := db.GetEntity(key)
-	if !ok {
+	entity, exists := db.GetEntity(key)
+	if !exists {
 		return nil, nil
 	}
 	bytes, ok := entity.Data.([]byte)
@@ -191,8 +192,8 @@ func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
 }
 
 func (db *Database) GetList(key string) (List.List[[]byte], _interface.ErrorReply) {
-	entity, ok := db.GetEntity(key)
-	if !ok {
+	entity, exists := db.GetEntity(key)
+	if !exists {
 		return nil, nil
 	}
 	list, ok := entity.Data.(List.List[[]byte])
@@ -200,6 +201,18 @@ func (db *Database) GetList(key string) (List.List[[]byte], _interface.ErrorRepl
 		return nil, reply.MakeWrongTypeErrReply()
 	}
 	return list, nil
+}
+
+func (db *Database) GetZSet(key string) (*ZSet.SortedSet[string], _interface.ErrorReply) {
+	entity, exists := db.GetEntity(key)
+	if !exists {
+		return nil, nil
+	}
+	zset, ok := entity.Data.(*ZSet.SortedSet[string])
+	if !ok {
+		return nil, reply.MakeWrongTypeErrReply()
+	}
+	return zset, nil
 }
 
 /* ----- Get or Init Entity ----- */
@@ -218,5 +231,29 @@ func (db *Database) GetOrInitList(key string) (list List.List[[]byte], isNew boo
 		isNew = true
 	}
 	return list, isNew, nil
+}
 
+func (db *Database) GetOrInitZSet(key string) (zset *ZSet.SortedSet[string], isNew bool, errReply _interface.ErrorReply) {
+	zset, errReply = db.GetZSet(key)
+	if errReply != nil {
+		return nil, false, errReply // WrongTypeErrReply
+	}
+	isNew = false
+	if zset == nil {
+		// 初始化zset
+		compare := func(a string, b string) int {
+			if a < b {
+				return -1
+			} else if a > b {
+				return 1
+			} else {
+				return 0
+			}
+		}
+		zset = ZSet.MakeSortedSet[string](compare)
+		entity := _type.NewEntity(zset)
+		db.PutEntity(key, entity)
+		isNew = true
+	}
+	return zset, isNew, nil
 }
