@@ -2,17 +2,18 @@ package commands
 
 import (
 	"go-redis/database"
+	"go-redis/database/commands/common"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
-	"go-redis/redis/resp/reply"
+	Reply "go-redis/redis/resp/reply"
 	"strconv"
 )
 
 func init() {
-	database.RegisterCommand("ZAdd", execZAdd, writeFirstKey, -4, database.ReadWrite)
-	database.RegisterCommand("ZScore", execZScore, readFirstKey, 3, database.ReadOnly)
+	database.RegisterCommand("ZAdd", execZAdd, common.WriteFirstKey, -4, database.ReadWrite)
+	database.RegisterCommand("ZScore", execZScore, common.ReadFirstKey, 3, database.ReadOnly)
 	//RegisterCommand("ZIncrBy", execZIncrBy, writeFirstKey, undoZIncr, 4, flagWrite)
-	database.RegisterCommand("ZRank", execZRank, readFirstKey, 3, database.ReadOnly)
+	database.RegisterCommand("ZRank", execZRank, common.ReadFirstKey, 3, database.ReadOnly)
 	//RegisterCommand("ZCount", execZCount, readFirstKey, nil, 4, flagReadOnly)
 	//RegisterCommand("ZRevRank", execZRevRank, readFirstKey, nil, 3, flagReadOnly)
 	//RegisterCommand("ZCard", execZCard, readFirstKey, nil, 2, flagReadOnly)
@@ -28,10 +29,9 @@ func init() {
 
 func execZAdd(db *database.Database, args _type.Args) _interface.Reply {
 	if len(args)%2 != 1 {
-		return reply.MakeArgNumErrReply("number of parameters must be odd.")
+		return Reply.MakeArgNumErrReply("number of parameters must be odd.")
 	}
-	key := string(args[0])
-	num := (len(args) - 1) / 2
+	key, num := string(args[0]), (len(args)-1)/2
 	zset, _, errReply := db.GetOrInitZSet(key)
 	if errReply != nil {
 		return errReply
@@ -41,14 +41,12 @@ func execZAdd(db *database.Database, args _type.Args) _interface.Reply {
 		member := string(args[2*i+2])
 		score, err := strconv.ParseFloat(string(args[2*i+1]), 64)
 		if err != nil {
-			return reply.MakeErrReply("value is not a valid float")
+			return Reply.MakeErrReply("value is not a valid float")
 		}
-		if zset.Add(member, score) {
-			count++
-		}
+		count += zset.Add(member, score)
 	}
 	//db.addAof(utils.ToCmdLine3("zadd", args...))
-	return reply.MakeIntReply(int64(count))
+	return Reply.MakeIntReply(int64(count))
 }
 
 func execZRank(db *database.Database, args _type.Args) _interface.Reply {
@@ -58,13 +56,13 @@ func execZRank(db *database.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return reply.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
 	rank := zset.GetRank(member, false)
 	if rank < 0 {
-		return reply.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
-	return reply.MakeIntReply(int64(rank))
+	return Reply.MakeIntReply(int64(rank))
 }
 
 func execZScore(db *database.Database, args _type.Args) _interface.Reply {
@@ -74,12 +72,12 @@ func execZScore(db *database.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return reply.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
 	score, existed := zset.Get(member)
 	if !existed {
-		return reply.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
 	value := strconv.FormatFloat(score, 'f', -1, 64)
-	return reply.MakeBulkReply([]byte(value))
+	return Reply.MakeBulkReply([]byte(value))
 }

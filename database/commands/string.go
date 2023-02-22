@@ -2,17 +2,18 @@ package commands
 
 import (
 	"go-redis/database"
+	"go-redis/database/commands/common"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
-	"go-redis/redis/resp/reply"
+	Reply "go-redis/redis/resp/reply"
 )
 
 // 注册命令
 func init() {
-	database.RegisterCommand("Set", execSet, writeFirstKey, -3, database.ReadWrite)
+	database.RegisterCommand("Set", execSet, common.WriteFirstKey, -3, database.ReadWrite)
 	//database.RegisterCommand("SetNX", execSet, 3, database.ReadWrite)
 	//database.RegisterCommand("SetEX", execSet, 4, database.ReadWrite)
-	database.RegisterCommand("Get", execGet, readFirstKey, 2, database.ReadOnly)
+	database.RegisterCommand("Get", execGet, common.ReadFirstKey, 2, database.ReadOnly)
 	//database.RegisterCommand("GetNX", execSet, -3, database.ReadWrite)
 }
 
@@ -21,9 +22,9 @@ func execSet(db *database.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(args[1])
 	result := db.PutEntity(key, entity)
 	if result > 0 {
-		return &reply.OkReply{}
+		return &Reply.OkReply{}
 	}
-	return &reply.NullBulkReply{}
+	return &Reply.NullBulkReply{}
 }
 
 func execGet(db *database.Database, args _type.Args) _interface.Reply {
@@ -32,5 +33,5 @@ func execGet(db *database.Database, args _type.Args) _interface.Reply {
 	if errReply != nil {
 		return errReply
 	}
-	return reply.MakeBulkReply(bytes)
+	return Reply.MakeBulkReply(bytes)
 }

@@ -8,10 +8,6 @@ import (
 	"time"
 )
 
-func init() {
-	commands.RegisterAllCommand()
-}
-
 var tcpCfg = tcp.Config{
 	Address:    "localhost:6666",
 	MaxConnect: 10,
@@ -23,8 +19,9 @@ var tcpCfg = tcp.Config{
 var redisHandler = redis.MakeHandler()
 
 func main() {
-	print("go-redis running...")
+	print("go-redis running...\n")
 	tcpServer := tcp.MakeTcpServer(tcpCfg, redisHandler)
+	commands.RegisterAllCommand()
 	err := tcpServer.ListenAndServeWithSignal()
 	if err != nil {
 		logger.Error(err)

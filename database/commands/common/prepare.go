@@ -1,20 +1,20 @@
-package commands
+package common
 
 import _type "go-redis/interface/type"
 
-/*----- Prepare: func(args _type.Args) ([]string, []string) -----*/
+/*----- keysFind: func(args _type.Args) ([]string, []string) -----*/
 
-func readFirstKey(args _type.Args) ([]string, []string) {
+func ReadFirstKey(args _type.Args) ([]string, []string) {
 	key := string(args[0])
 	return nil, []string{key}
 }
 
-func writeFirstKey(args _type.Args) ([]string, []string) {
+func WriteFirstKey(args _type.Args) ([]string, []string) {
 	key := string(args[0])
 	return []string{key}, nil
 }
 
-func writeAllKeys(args _type.Args) ([]string, []string) {
+func WriteAllKeys(args _type.Args) ([]string, []string) {
 	keys := make([]string, len(args))
 	for i, key := range args {
 		keys[i] = string(key)
@@ -22,7 +22,7 @@ func writeAllKeys(args _type.Args) ([]string, []string) {
 	return keys, nil
 }
 
-func readAllKeys(args _type.Args) ([]string, []string) {
+func ReadAllKeys(args _type.Args) ([]string, []string) {
 	keys := make([]string, len(args))
 	for i, key := range args {
 		keys[i] = string(key)

@@ -28,7 +28,7 @@ func (set *SortedSet[T]) Len() int {
 	return set.dict.Len()
 }
 
-func (set *SortedSet[T]) Add(member T, score float64) bool {
+func (set *SortedSet[T]) Add(member T, score float64) int {
 	if set == nil {
 		panic("this SortedSet is nil.")
 	}
@@ -39,10 +39,10 @@ func (set *SortedSet[T]) Add(member T, score float64) bool {
 			set.skiplist.Remove(member, oldScore)
 			set.skiplist.Insert(member, score)
 		}
-		return false
+		return 0
 	}
 	set.skiplist.Insert(member, score)
-	return true
+	return 1
 }
 
 func (set *SortedSet[T]) Get(member T) (float64, bool) {

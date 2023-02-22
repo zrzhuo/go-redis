@@ -4,11 +4,12 @@ import (
 	"fmt"
 	Dict "go-redis/database/datastruct/dict"
 	List "go-redis/database/datastruct/list"
-	"go-redis/database/datastruct/lock"
+	Lock "go-redis/database/datastruct/lock"
+	Set "go-redis/database/datastruct/set"
 	ZSet "go-redis/database/datastruct/zset"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
-	"go-redis/redis/resp/reply"
+	Reply "go-redis/redis/resp/reply"
 	"go-redis/utils/logger"
 	"go-redis/utils/timewheel"
 	"strings"
@@ -26,7 +27,7 @@ type Database struct {
 	data    Dict.Dict[string, *_type.Entity] // 数据
 	ttl     Dict.Dict[string, time.Time]     // 超时时间
 	version Dict.Dict[string, uint32]        // 版本
-	locker  *lock.Locks                      // 锁
+	locker  *Lock.Locks                      // 锁，用于执行命令时为key加锁
 }
 
 func MakeDatabase(idx int) *Database {
@@ -35,7 +36,7 @@ func MakeDatabase(idx int) *Database {
 		data:    Dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
 		ttl:     Dict.MakeConcurrentDict[string, time.Time](ttlSize),
 		version: Dict.MakeConcurrentDict[string, uint32](dataSize),
-		locker:  lock.MakeLocks(lockerSize),
+		locker:  Lock.MakeLocks(lockerSize),
 	}
 	return database
 }
@@ -49,19 +50,21 @@ func (db *Database) execCommand(cmdLine _type.CmdLine) _interface.Reply {
 	cmd, ok := Commands[cmdName]
 	// 是否存在该命令
 	if !ok {
-		return reply.MakeErrReply("unknown command '" + cmdName + "'")
+		return Reply.MakeErrReply("unknown command '" + cmdName + "'")
 	}
 	// 参数个数是否满足要求
 	if !checkArity(cmd.Arity, cmdLine) {
-		return reply.MakeArgNumErrReply(cmdName)
+		return Reply.MakeArgNumErrReply(cmdName)
 	}
-	args := _type.Args(cmdLine[1:]) // 获取参数
-	writeKeys, readKeys := cmd.Prepare(args)
+	args := _type.Args(cmdLine[1:])           // 获取参数
+	writeKeys, readKeys := cmd.keysFind(args) // 获取需要加锁的key
 	//db.addVersion(writeKeys...)
 	// 加锁
 	db.RWLocks(writeKeys, readKeys)
 	defer db.RWUnLocks(writeKeys, readKeys)
-	return cmd.Execute(db, args)
+	// 执行
+	reply := cmd.Execute(db, args)
+	return reply
 }
 
 // 检查参数个数是否满足要求
@@ -75,7 +78,7 @@ func checkArity(arity int, cmdLine _type.CmdLine) bool {
 
 /* ----- Lock ----- */
 
-// RWLocks lock keys for writing and reading
+// RWLocks Lock keys for writing and reading
 func (db *Database) RWLocks(writeKeys []string, readKeys []string) {
 	db.locker.RWLocks(writeKeys, readKeys)
 }
@@ -174,7 +177,7 @@ func (db *Database) Removes(keys ...string) (count int) {
 func (db *Database) Flush() {
 	db.data.Clear()
 	db.ttl.Clear()
-	db.locker = lock.MakeLocks(lockerSize) // 重置锁
+	db.locker = Lock.MakeLocks(lockerSize) // 重置锁
 }
 
 /* ----- Get Entity ----- */
@@ -186,7 +189,7 @@ func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
 	}
 	bytes, ok := entity.Data.([]byte)
 	if !ok {
-		return nil, reply.MakeWrongTypeErrReply()
+		return nil, Reply.MakeWrongTypeErrReply()
 	}
 	return bytes, nil
 }
@@ -198,9 +201,21 @@ func (db *Database) GetList(key string) (List.List[[]byte], _interface.ErrorRepl
 	}
 	list, ok := entity.Data.(List.List[[]byte])
 	if !ok {
-		return nil, reply.MakeWrongTypeErrReply()
+		return nil, Reply.MakeWrongTypeErrReply()
 	}
 	return list, nil
+}
+
+func (db *Database) GetSet(key string) (*Set.Set[string], _interface.ErrorReply) {
+	entity, exists := db.GetEntity(key)
+	if !exists {
+		return nil, nil
+	}
+	set, ok := entity.Data.(*Set.Set[string])
+	if !ok {
+		return nil, Reply.MakeWrongTypeErrReply()
+	}
+	return set, nil
 }
 
 func (db *Database) GetZSet(key string) (*ZSet.SortedSet[string], _interface.ErrorReply) {
@@ -210,9 +225,21 @@ func (db *Database) GetZSet(key string) (*ZSet.SortedSet[string], _interface.Err
 	}
 	zset, ok := entity.Data.(*ZSet.SortedSet[string])
 	if !ok {
-		return nil, reply.MakeWrongTypeErrReply()
+		return nil, Reply.MakeWrongTypeErrReply()
 	}
 	return zset, nil
+}
+
+func (db *Database) GetDict(key string) (Dict.Dict[string, []byte], _interface.ErrorReply) {
+	entity, exists := db.GetEntity(key)
+	if !exists {
+		return nil, nil
+	}
+	dict, ok := entity.Data.(Dict.Dict[string, []byte])
+	if !ok {
+		return nil, Reply.MakeWrongTypeErrReply()
+	}
+	return dict, nil
 }
 
 /* ----- Get or Init Entity ----- */
@@ -231,6 +258,22 @@ func (db *Database) GetOrInitList(key string) (list List.List[[]byte], isNew boo
 		isNew = true
 	}
 	return list, isNew, nil
+}
+
+func (db *Database) GetOrInitSet(key string) (set *Set.Set[string], isNew bool, errReply _interface.ErrorReply) {
+	set, errReply = db.GetSet(key)
+	if errReply != nil {
+		return nil, false, errReply // WrongTypeErrReply
+	}
+	isNew = false
+	if set == nil {
+		// 初始化set
+		set = Set.MakeSimpleSet[string]()
+		entity := _type.NewEntity(set)
+		db.PutEntity(key, entity)
+		isNew = true
+	}
+	return set, isNew, nil
 }
 
 func (db *Database) GetOrInitZSet(key string) (zset *ZSet.SortedSet[string], isNew bool, errReply _interface.ErrorReply) {
@@ -256,4 +299,20 @@ func (db *Database) GetOrInitZSet(key string) (zset *ZSet.SortedSet[string], isN
 		isNew = true
 	}
 	return zset, isNew, nil
+}
+
+func (db *Database) GetOrInitDict(key string) (set Dict.Dict[string, []byte], isNew bool, errReply _interface.ErrorReply) {
+	set, errReply = db.GetDict(key)
+	if errReply != nil {
+		return nil, false, errReply // WrongTypeErrReply
+	}
+	isNew = false
+	if set == nil {
+		// 初始化set
+		set = Dict.MakeSimpleDict[string, []byte]()
+		entity := _type.NewEntity(set)
+		db.PutEntity(key, entity)
+		isNew = true
+	}
+	return set, isNew, nil
 }

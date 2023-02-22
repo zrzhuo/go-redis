@@ -9,7 +9,6 @@ type Type interface {
 	string | list.QuickList[string]
 }
 
-// Entity stores data bound to a key, including a string, list, hash, set and so on
 type Entity struct {
 	Data any
 }

@@ -13,13 +13,13 @@ const (
 
 type Execute func(db *Database, args _type.Args) _interface.Reply
 
-type Prepare func(args _type.Args) ([]string, []string)
+type keysFind func(args _type.Args) ([]string, []string)
 
 type Undo func(db *Database, args _type.Args) []_type.CmdLine
 
 type command struct {
-	Execute Execute
-	Prepare Prepare
+	Execute  Execute
+	keysFind keysFind
 	//undo     Undo
 	Arity  int // 大于等于零时表示参数个数，小于零时表示参数个数的最小值
 	Status int
@@ -28,13 +28,13 @@ type command struct {
 // Commands 存放所有命令
 var Commands = make(map[string]*command)
 
-func RegisterCommand(name string, execute Execute, prepare Prepare, arity int, status int) {
+func RegisterCommand(name string, execute Execute, keysFind keysFind, arity int, status int) {
 	name = strings.ToLower(name)
 	Commands[name] = &command{
-		Execute: execute,
-		Prepare: prepare,
-		Arity:   arity,
-		Status:  status,
+		Execute:  execute,
+		keysFind: keysFind,
+		Arity:    arity,
+		Status:   status,
 	}
 }
 

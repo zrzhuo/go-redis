@@ -95,13 +95,13 @@ func (dict *ConcurrentDict[K, V]) Len() int {
 	return int(atomic.LoadInt32(&dict.count))
 }
 
-func (dict *ConcurrentDict[K, V]) Get(key K) (val V, exists bool) {
+func (dict *ConcurrentDict[K, V]) Get(key K) (val V, existed bool) {
 	checkNilDict(dict)
 	s := dict.computeShard(key)
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	val, exists = s.m[key]
+	val, existed = s.m[key]
 	return
 }
 
