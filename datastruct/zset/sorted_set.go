@@ -2,7 +2,7 @@ package zset
 
 import (
 	"fmt"
-	"go-redis/redis/datastruct/dict"
+	dict2 "go-redis/datastruct/dict"
 )
 
 type Compare[T comparable] func(T, T) int // 用于比较的函数
@@ -10,13 +10,13 @@ type Compare[T comparable] func(T, T) int // 用于比较的函数
 type Consumer[T comparable] func(member T, score float64) bool
 
 type SortedSet[T comparable] struct {
-	dict     dict.Dict[T, float64]
+	dict     dict2.Dict[T, float64]
 	skiplist *SkipList[T]
 }
 
 func MakeSortedSet[T comparable](comp Compare[T]) *SortedSet[T] {
 	return &SortedSet[T]{
-		dict:     dict.MakeSimpleDict[T, float64](),
+		dict:     dict2.MakeSimpleDict[T, float64](),
 		skiplist: MakeSkiplist[T](comp),
 	}
 }

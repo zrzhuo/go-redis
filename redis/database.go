@@ -2,13 +2,13 @@ package redis
 
 import (
 	"fmt"
+	Dict "go-redis/datastruct/dict"
+	List "go-redis/datastruct/list"
+	Lock "go-redis/datastruct/lock"
+	Set "go-redis/datastruct/set"
+	ZSet "go-redis/datastruct/zset"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
-	Dict "go-redis/redis/datastruct/dict"
-	List "go-redis/redis/datastruct/list"
-	Lock "go-redis/redis/datastruct/lock"
-	Set "go-redis/redis/datastruct/set"
-	ZSet "go-redis/redis/datastruct/zset"
 	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	"go-redis/utils/timewheel"

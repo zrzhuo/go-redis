@@ -1,17 +1,19 @@
 package set
 
-import "go-redis/redis/datastruct/dict"
+import (
+	Dict "go-redis/datastruct/dict"
+)
 
 type Consumer[T comparable] func(member T) bool
 
 // Set 对SimpleDict[K,V]的再次包装
 type Set[T comparable] struct {
-	dict dict.Dict[T, any]
+	dict Dict.Dict[T, any]
 }
 
 func MakeSimpleSet[T comparable](members ...T) *Set[T] {
 	set := &Set[T]{
-		dict: dict.MakeSimpleDict[T, any](),
+		dict: Dict.MakeSimpleDict[T, any](),
 	}
 	for _, member := range members {
 		set.Add(member)
