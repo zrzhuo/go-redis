@@ -1,4 +1,4 @@
-package common
+package utils
 
 import _type "go-redis/interface/type"
 

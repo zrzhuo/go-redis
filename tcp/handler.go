@@ -1,10 +1,10 @@
-package redis
+package tcp
 
 import (
-	"go-redis/database"
 	_interface "go-redis/interface"
-	"go-redis/redis/resp"
-	"go-redis/redis/resp/reply"
+	"go-redis/redis"
+	"go-redis/resp"
+	"go-redis/resp/reply"
 	"go-redis/utils/logger"
 	_sync "go-redis/utils/sync"
 	"io"
@@ -20,7 +20,7 @@ type Handler struct {
 }
 
 func MakeHandler() *Handler {
-	db := database.MakeServer()
+	db := redis.MakeServer()
 	return &Handler{
 		engine: db,
 	}
@@ -34,12 +34,12 @@ func (handler *Handler) Handle(conn net.Conn) {
 	}
 
 	// 建立RedisConn，并存入activeConn
-	redisConn := NewRedisConn(conn)
+	redisConn := redis.NewRedisConn(conn)
 	handler.activeConn.Store(redisConn, struct{}{})
 
 	// handle
-	parser := resp.MakeParser(redisConn.conn)
-	ch := parser.ParseSteam()
+	parser := resp.MakeParser(redisConn.Conn)
+	ch := parser.ParseStream()
 	for payload := range ch {
 		if payload.Err != nil {
 			// EOF错误，连接已断开
@@ -84,7 +84,7 @@ func (handler *Handler) Close() error {
 	logger.Info("handler shutting down...")
 	handler.closing.Set(true) // 设置为closing状态
 	handler.activeConn.Range(func(key interface{}, val interface{}) bool {
-		client := key.(*Connection)
+		client := key.(*redis.Connection)
 		_ = client.Close() // 逐个关闭连接
 		return true
 	})
@@ -93,7 +93,7 @@ func (handler *Handler) Close() error {
 }
 
 // 关闭指定连接
-func (handler *Handler) closeRedisConn(redisConn *Connection) {
+func (handler *Handler) closeRedisConn(redisConn *redis.Connection) {
 	_ = redisConn.Close()
 	handler.engine.AfterConnClose(redisConn)
 	handler.activeConn.Delete(redisConn)

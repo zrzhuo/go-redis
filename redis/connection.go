@@ -15,7 +15,7 @@ const (
 )
 
 type Connection struct {
-	conn       net.Conn
+	Conn       net.Conn
 	flags      uint64
 	selectedDB int
 	wait       sync2.Wait      // wait until finish sending data, used for graceful shutdown
@@ -34,18 +34,22 @@ var connPool = sync.Pool{
 	},
 }
 
-// NewRedisConn creates Connection instance
 func NewRedisConn(tcpConn net.Conn) *Connection {
 	redisConn, ok := connPool.Get().(*Connection) // 尝试从连接池中获取连接
 	if !ok {
 		logger.Error("wrong connection type")
 		// 从连接池中获取失败，新建一个
 		return &Connection{
-			conn: tcpConn,
+			Conn: tcpConn,
 		}
 	}
-	redisConn.conn = tcpConn
+	redisConn.Conn = tcpConn
 	return redisConn
+}
+
+// GetAofConn 用于aof
+func GetAofConn() *Connection {
+	return &Connection{}
 }
 
 // Write 项客户端发送响应
@@ -57,13 +61,13 @@ func (c *Connection) Write(b []byte) (int, error) {
 	defer func() {
 		c.wait.Done()
 	}()
-	return c.conn.Write(b)
+	return c.Conn.Write(b)
 }
 
 // Close 关闭连接
 func (c *Connection) Close() error {
 	c.wait.WaitWithTimeout(10 * time.Second) // 等待执行结束或超时
-	_ = c.conn.Close()
+	_ = c.Conn.Close()
 	c.subs = nil
 	c.password = ""
 	c.queue = nil
@@ -75,8 +79,8 @@ func (c *Connection) Close() error {
 }
 
 func (c *Connection) RemoteAddr() string {
-	if c.conn != nil {
-		return c.conn.RemoteAddr().String()
+	if c.Conn != nil {
+		return c.Conn.RemoteAddr().String()
 	}
 	return ""
 }

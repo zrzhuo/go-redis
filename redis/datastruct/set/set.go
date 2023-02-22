@@ -1,6 +1,6 @@
 package set
 
-import "go-redis/database/datastruct/dict"
+import "go-redis/redis/datastruct/dict"
 
 type Consumer[T comparable] func(member T) bool
 

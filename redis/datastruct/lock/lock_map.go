@@ -1,7 +1,7 @@
 package lock
 
 import (
-	"go-redis/utils"
+	"go-redis/utils/fnv"
 	"sort"
 	"sync"
 )
@@ -32,22 +32,22 @@ func (locks *Locks) spread(hashCode uint32) uint32 {
 /* ---- Single Lock ----- */
 
 func (locks *Locks) Lock(key string) {
-	idx := locks.spread(utils.Fnv32(key))
+	idx := locks.spread(fnv.Fnv32(key))
 	locks.table[idx].Lock()
 }
 
 func (locks *Locks) UnLock(key string) {
-	idx := locks.spread(utils.Fnv32(key))
+	idx := locks.spread(fnv.Fnv32(key))
 	locks.table[idx].Unlock()
 }
 
 func (locks *Locks) RLock(key string) {
-	idx := locks.spread(utils.Fnv32(key))
+	idx := locks.spread(fnv.Fnv32(key))
 	locks.table[idx].RLock()
 }
 
 func (locks *Locks) RUnLock(key string) {
-	idx := locks.spread(utils.Fnv32(key))
+	idx := locks.spread(fnv.Fnv32(key))
 	locks.table[idx].RUnlock()
 }
 
@@ -89,7 +89,7 @@ func (locks *Locks) RWLocks(writeKeys []string, readKeys []string) {
 	indices := locks.toIndices(keys, false)
 	writeSet := make(map[uint32]struct{})
 	for _, key := range writeKeys {
-		idx := locks.spread(utils.Fnv32(key))
+		idx := locks.spread(fnv.Fnv32(key))
 		writeSet[idx] = struct{}{}
 	}
 	for _, idx := range indices {
@@ -107,7 +107,7 @@ func (locks *Locks) RWUnLocks(writeKeys []string, readKeys []string) {
 	indices := locks.toIndices(keys, true)
 	writeSet := make(map[uint32]struct{})
 	for _, key := range writeKeys {
-		idx := locks.spread(utils.Fnv32(key))
+		idx := locks.spread(fnv.Fnv32(key))
 		writeSet[idx] = struct{}{}
 	}
 	for _, idx := range indices {
@@ -123,7 +123,7 @@ func (locks *Locks) RWUnLocks(writeKeys []string, readKeys []string) {
 func (locks *Locks) toIndices(keys []string, reverse bool) []uint32 {
 	idxMap := make(map[uint32]bool)
 	for _, key := range keys {
-		idx := locks.spread(utils.Fnv32(key))
+		idx := locks.spread(fnv.Fnv32(key))
 		idxMap[idx] = true
 	}
 	indices := make([]uint32, 0, len(idxMap))

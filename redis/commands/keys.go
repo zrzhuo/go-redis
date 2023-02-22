@@ -1,21 +1,21 @@
 package commands
 
 import (
-	"go-redis/database"
-	"go-redis/database/commands/common"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
-	Reply "go-redis/redis/resp/reply"
+	"go-redis/redis"
+	"go-redis/redis/utils"
+	reply2 "go-redis/resp/reply"
 	"strconv"
 	"time"
 )
 
 func init() {
-	database.RegisterCommand("Exists", execExists, common.ReadAllKeys, -2, database.ReadOnly)
-	database.RegisterCommand("Del", execDel, common.WriteAllKeys, -2, database.ReadWrite)
-	database.RegisterCommand("Expire", execExpire, common.WriteFirstKey, 3, database.ReadWrite)
-	database.RegisterCommand("ExpireAt", execExpireAt, common.WriteFirstKey, 3, database.ReadWrite)
-	//database.RegisterCommand("ExpireTime", execExpireTime, readFirstKey, 2, flagReadOnly)
+	redis.RegisterCommand("Exists", execExists, utils.ReadAllKeys, -2, redis.ReadOnly)
+	redis.RegisterCommand("Del", execDel, utils.WriteAllKeys, -2, redis.ReadWrite)
+	redis.RegisterCommand("Expire", execExpire, utils.WriteFirstKey, 3, redis.ReadWrite)
+	redis.RegisterCommand("ExpireAt", execExpireAt, utils.WriteFirstKey, 3, redis.ReadWrite)
+	//redis.RegisterCommand("ExpireTime", execExpireTime, readFirstKey, 2, flagReadOnly)
 	//RegisterCommand("PExpire", execPExpire, writeFirstKey, undoExpire, 3, flagWrite)
 	//RegisterCommand("PExpireAt", execPExpireAt, writeFirstKey, undoExpire, 3, flagWrite)
 	//RegisterCommand("PExpireTime", execPExpireTime, readFirstKey, nil, 2, flagReadOnly)
@@ -28,9 +28,9 @@ func init() {
 	//RegisterCommand("Keys", execKeys, noPrepare, nil, 2, flagReadOnly)
 }
 
-/*----- Execute: func(db *database.Database, args _type.Args) _interface.Reply -----*/
+/*----- Execute: func(db *redis.Database, args _type.Args) _interface.Reply -----*/
 
-func execExists(db *database.Database, args _type.Args) _interface.Reply {
+func execExists(db *redis.Database, args _type.Args) _interface.Reply {
 	var count int64 = 0
 	for _, key := range args {
 		_, existed := db.GetEntity(string(key))
@@ -38,10 +38,10 @@ func execExists(db *database.Database, args _type.Args) _interface.Reply {
 			count++
 		}
 	}
-	return Reply.MakeIntReply(count)
+	return reply2.MakeIntReply(count)
 }
 
-func execDel(db *database.Database, args _type.Args) _interface.Reply {
+func execDel(db *redis.Database, args _type.Args) _interface.Reply {
 	keys := make([]string, len(args))
 	for i, key := range args {
 		keys[i] = string(key)
@@ -50,37 +50,37 @@ func execDel(db *database.Database, args _type.Args) _interface.Reply {
 	if count > 0 {
 		// aof
 	}
-	return Reply.MakeIntReply(int64(count))
+	return reply2.MakeIntReply(int64(count))
 }
 
-func execExpire(db *database.Database, args _type.Args) _interface.Reply {
+func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	num, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("illegal integer")
+		return reply2.MakeErrReply("illegal integer")
 	}
 	key := string(args[0])
 	_, existed := db.GetEntity(key)
 	if !existed {
-		return Reply.MakeIntReply(0) // key不存在时返回0
+		return reply2.MakeIntReply(0) // key不存在时返回0
 	}
 	expireAt := time.Now().Add(time.Duration(num) * time.Second)
 	db.SetExpire(key, expireAt)
 	//db.addAof(aof.MakeExpireCmd(key, expireAt).Args)
-	return Reply.MakeIntReply(1) // 设置成功时返回1
+	return reply2.MakeIntReply(1) // 设置成功时返回1
 }
 
-func execExpireAt(db *database.Database, args _type.Args) _interface.Reply {
+func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	ttl, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("illegal integer")
+		return reply2.MakeErrReply("illegal integer")
 	}
 	key := string(args[0])
 	_, exists := db.GetEntity(key)
 	if !exists {
-		return Reply.MakeIntReply(0)
+		return reply2.MakeIntReply(0)
 	}
 	expireAt := time.Unix(ttl, 0)
 	db.SetExpire(key, expireAt)
 	//db.addAof(aof.MakeExpireCmd(key, expireAt).Args)
-	return Reply.MakeIntReply(1)
+	return reply2.MakeIntReply(1)
 }

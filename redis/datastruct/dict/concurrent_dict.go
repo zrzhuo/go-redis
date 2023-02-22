@@ -1,7 +1,7 @@
 package dict
 
 import (
-	"go-redis/utils"
+	"go-redis/utils/fnv"
 	"math"
 	"math/rand"
 	"sync"
@@ -85,7 +85,7 @@ func (dict *ConcurrentDict[K, V]) getShard(index uint32) *shard[K, V] {
 
 // 根据key计算其应该存放的shard
 func (dict *ConcurrentDict[K, V]) computeShard(key K) *shard[K, V] {
-	hashCode := utils.Fnv32(key)
+	hashCode := fnv.Fnv32(key)
 	index := dict.spread(hashCode)
 	return dict.getShard(index)
 }

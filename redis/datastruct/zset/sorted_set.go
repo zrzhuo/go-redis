@@ -2,7 +2,7 @@ package zset
 
 import (
 	"fmt"
-	"go-redis/database/datastruct/dict"
+	"go-redis/redis/datastruct/dict"
 )
 
 type Compare[T comparable] func(T, T) int // 用于比较的函数

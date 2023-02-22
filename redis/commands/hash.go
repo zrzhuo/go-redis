@@ -1,17 +1,17 @@
 package commands
 
 import (
-	"go-redis/database"
-	"go-redis/database/commands/common"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
-	Reply "go-redis/redis/resp/reply"
+	"go-redis/redis"
+	"go-redis/redis/utils"
+	reply2 "go-redis/resp/reply"
 )
 
 func init() {
-	database.RegisterCommand("HSet", execHSet, common.WriteFirstKey, 4, database.ReadWrite)
+	redis.RegisterCommand("HSet", execHSet, utils.WriteFirstKey, 4, redis.ReadWrite)
 	//RegisterCommand("HSetNX", execHSetNX, writeFirstKey, undoHSet, 4, flagWrite)
-	database.RegisterCommand("HGet", execHGet, common.ReadFirstKey, 3, database.ReadOnly)
+	redis.RegisterCommand("HGet", execHGet, utils.ReadFirstKey, 3, redis.ReadOnly)
 	//RegisterCommand("HExists", execHExists, readFirstKey, nil, 3, flagReadOnly)
 	//RegisterCommand("HDel", execHDel, writeFirstKey, undoHDel, -3, flagWrite)
 	//RegisterCommand("HLen", execHLen, readFirstKey, nil, 2, flagReadOnly)
@@ -27,7 +27,7 @@ func init() {
 	//RegisterCommand("HRandField", execHRandField, readFirstKey, nil, -2, flagReadOnly)
 }
 
-func execHSet(db *database.Database, args _type.Args) _interface.Reply {
+func execHSet(db *redis.Database, args _type.Args) _interface.Reply {
 	key, field, value := string(args[0]), string(args[1]), args[2]
 	dict, _, errReply := db.GetOrInitDict(key)
 	if errReply != nil {
@@ -35,21 +35,21 @@ func execHSet(db *database.Database, args _type.Args) _interface.Reply {
 	}
 	result := dict.Put(field, value)
 	//db.addAof(utils.ToCmdLine3("hset", args...))
-	return Reply.MakeIntReply(int64(result))
+	return reply2.MakeIntReply(int64(result))
 }
 
-func execHGet(db *database.Database, args _type.Args) _interface.Reply {
+func execHGet(db *redis.Database, args _type.Args) _interface.Reply {
 	key, field := string(args[0]), string(args[1])
 	dict, errReply := db.GetDict(key)
 	if errReply != nil {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeNullBulkReply()
+		return reply2.MakeNullBulkReply()
 	}
 	value, existed := dict.Get(field)
 	if !existed {
-		return Reply.MakeNullBulkReply()
+		return reply2.MakeNullBulkReply()
 	}
-	return Reply.MakeBulkReply(value)
+	return reply2.MakeBulkReply(value)
 }

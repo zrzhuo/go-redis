@@ -1,8 +1,7 @@
 package main
 
 import (
-	"go-redis/database/commands"
-	"go-redis/redis"
+	"go-redis/redis/commands"
 	"go-redis/tcp"
 	"go-redis/utils/logger"
 	"time"
@@ -16,7 +15,7 @@ var tcpCfg = tcp.Config{
 
 //var echoHandler = tcp.MakeEchoHandler()
 
-var redisHandler = redis.MakeHandler()
+var redisHandler = tcp.MakeHandler()
 
 func main() {
 	print("go-redis running...\n")

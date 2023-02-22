@@ -1,15 +1,15 @@
-package database
+package redis
 
 import (
 	"fmt"
-	Dict "go-redis/database/datastruct/dict"
-	List "go-redis/database/datastruct/list"
-	Lock "go-redis/database/datastruct/lock"
-	Set "go-redis/database/datastruct/set"
-	ZSet "go-redis/database/datastruct/zset"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
-	Reply "go-redis/redis/resp/reply"
+	Dict "go-redis/redis/datastruct/dict"
+	List "go-redis/redis/datastruct/list"
+	Lock "go-redis/redis/datastruct/lock"
+	Set "go-redis/redis/datastruct/set"
+	ZSet "go-redis/redis/datastruct/zset"
+	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	"go-redis/utils/timewheel"
 	"strings"
@@ -28,6 +28,7 @@ type Database struct {
 	ttl     Dict.Dict[string, time.Time]     // 超时时间
 	version Dict.Dict[string, uint32]        // 版本
 	locker  *Lock.Locks                      // 锁，用于执行命令时为key加锁
+	AddAof  func(_type.CmdLine)              // 添加命令到aof
 }
 
 func MakeDatabase(idx int) *Database {

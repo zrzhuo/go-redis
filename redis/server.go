@@ -1,11 +1,10 @@
-package database
+package redis
 
 import (
 	"fmt"
-	Aof "go-redis/database/persistence/aof"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
-	Reply "go-redis/redis/resp/reply"
+	reply2 "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	"runtime/debug"
 	"strconv"
@@ -17,7 +16,7 @@ const NumOfDatabases = 4
 
 type Server struct {
 	databases []*atomic.Value // 若干个redis数据库
-	persister *Aof.Persister  // AOF持久化
+	persister *Persister      // AOF持久化
 }
 
 func MakeServer() *Server {
@@ -29,6 +28,18 @@ func MakeServer() *Server {
 		holder.Store(db)
 		server.databases[i] = holder
 	}
+	// AOF持久化
+	persister, err := NewPersister(server, "data.aof", "always", true)
+	if err != nil {
+		panic(err)
+	}
+	server.persister = persister
+	for i := range server.databases {
+		db := server.databases[i].Load().(*Database)
+		db.AddAof = func(cmdLine _type.CmdLine) {
+			server.persister.ToAOF(db.idx, cmdLine)
+		}
+	}
 	return server
 }
 
@@ -36,7 +47,7 @@ func (server *Server) Exec(redisConn _interface.Connection, cmdLine _type.CmdLin
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Error(fmt.Sprintf("error occurs: %v\n%s", err, string(debug.Stack())))
-			rep = &Reply.UnknownErrReply{}
+			rep = &reply2.UnknownErrReply{}
 		}
 	}()
 
@@ -58,14 +69,14 @@ func (server *Server) Exec(redisConn _interface.Connection, cmdLine _type.CmdLin
 func (server *Server) execSelect(redisConn _interface.Connection, cmdLine _type.CmdLine) _interface.Reply {
 	dbIdx, err := strconv.Atoi(string(cmdLine[1]))
 	if err != nil {
-		return Reply.MakeErrReply("selected index is invalid")
+		return reply2.MakeErrReply("selected index is invalid")
 	}
 	if dbIdx >= len(server.databases) || dbIdx < 0 {
 		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return Reply.MakeErrReply(msg)
+		return reply2.MakeErrReply(msg)
 	}
 	redisConn.SetSelectDB(dbIdx)
-	return Reply.MakeOkReply()
+	return reply2.MakeOkReply()
 }
 
 func (server *Server) AfterConnClose(redisConn _interface.Connection) {
@@ -79,7 +90,7 @@ func (server *Server) Close() {
 func (server *Server) getDB(dbIdx int) (*Database, _interface.ErrorReply) {
 	if dbIdx < 0 || dbIdx >= len(server.databases) {
 		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return nil, Reply.MakeErrReply(msg)
+		return nil, reply2.MakeErrReply(msg)
 	}
 	return server.databases[dbIdx].Load().(*Database), nil
 }

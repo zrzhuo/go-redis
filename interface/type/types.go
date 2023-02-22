@@ -1,6 +1,6 @@
 package _type
 
-import "go-redis/database/datastruct/list"
+import "go-redis/redis/datastruct/list"
 
 type CmdLine [][]byte
 type Args [][]byte
