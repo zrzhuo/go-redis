@@ -3,31 +3,29 @@ package utils
 import _type "go-redis/interface/type"
 
 func ToCmdLine(cmd ...string) _type.CmdLine {
-	args := make([][]byte, len(cmd))
+	cmdLine := make([][]byte, len(cmd))
 	for i, s := range cmd {
-		args[i] = []byte(s)
+		cmdLine[i] = []byte(s)
 	}
-	return args
+	return cmdLine
 }
 
-// ToCmdLine2 convert commandName and string-type argument to [][]byte
-func ToCmdLine2(commandName string, args ...string) [][]byte {
-	result := make([][]byte, len(args)+1)
-	result[0] = []byte(commandName)
+func ToCmdLine2(name string, args ...string) _type.CmdLine {
+	cmdLine := make([][]byte, len(args)+1)
+	cmdLine[0] = []byte(name)
 	for i, s := range args {
-		result[i+1] = []byte(s)
+		cmdLine[i+1] = []byte(s)
 	}
-	return result
+	return cmdLine
 }
 
-// ToCmdLine3 convert commandName and []byte-type argument to CmdLine
-func ToCmdLine3(commandName string, args ...[]byte) [][]byte {
-	result := make([][]byte, len(args)+1)
-	result[0] = []byte(commandName)
+func ToCmdLine3(name string, args ...[]byte) _type.CmdLine {
+	cmdLine := make([][]byte, len(args)+1)
+	cmdLine[0] = []byte(name)
 	for i, s := range args {
-		result[i+1] = s
+		cmdLine[i+1] = s
 	}
-	return result
+	return cmdLine
 }
 
 // Equals check whether the given value is equal

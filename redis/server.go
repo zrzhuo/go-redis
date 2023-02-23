@@ -16,7 +16,7 @@ const NumOfDatabases = 4
 
 type Server struct {
 	databases []*atomic.Value // 若干个redis数据库
-	persister *Persister      // AOF持久化
+	//persister *Persister      // AOF持久化
 }
 
 func MakeServer() *Server {
@@ -29,16 +29,21 @@ func MakeServer() *Server {
 		server.databases[i] = holder
 	}
 	// AOF持久化
-	persister, err := NewPersister(server, "data.aof", "always", true)
-	if err != nil {
-		panic(err)
-	}
-	server.persister = persister
-	for i := range server.databases {
-		db := server.databases[i].Load().(*Database)
-		db.AddAof = func(cmdLine _type.CmdLine) {
-			server.persister.ToAOF(db.idx, cmdLine)
+	if Config.AppendOnly {
+		filename, fsync := Config.AppendFilename, Config.AppendFsync
+		persister, err := NewPersister(server, filename, fsync)
+		if err != nil {
+			panic(err)
 		}
+		// 为每个database开启aof
+		for i := range server.databases {
+			db := server.databases[i].Load().(*Database)
+			db.ToAof = func(cmdLine _type.CmdLine) {
+				persister.ToAOF(db.idx, cmdLine)
+			}
+		}
+		persister.ReadAof()   // 加载aof文件
+		persister.listening() // 开启aof监听
 	}
 	return server
 }
@@ -75,22 +80,22 @@ func (server *Server) execSelect(redisConn _interface.Connection, cmdLine _type.
 		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
 		return reply2.MakeErrReply(msg)
 	}
-	redisConn.SetSelectDB(dbIdx)
+	redisConn.SetSelectDB(dbIdx) // 修改redisConn的dbIdx
 	return reply2.MakeOkReply()
 }
 
 func (server *Server) AfterConnClose(redisConn _interface.Connection) {
-
+	logger.Info("connection is closed, do something...")
 }
 
 func (server *Server) Close() {
-
+	logger.Info("redis server is closing...")
 }
 
 func (server *Server) getDB(dbIdx int) (*Database, _interface.ErrorReply) {
 	if dbIdx < 0 || dbIdx >= len(server.databases) {
-		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return nil, reply2.MakeErrReply(msg)
+		err := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
+		return nil, reply2.MakeErrReply(err)
 	}
 	return server.databases[dbIdx].Load().(*Database), nil
 }

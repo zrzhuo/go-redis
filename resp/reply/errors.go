@@ -24,7 +24,13 @@ func (r *StandardErrReply) Error() string {
 
 type UnknownErrReply struct{}
 
+var unknownErrReply = &UnknownErrReply{}
+
 var unknownErrBytes = []byte("-ERR: unknown" + CRLF)
+
+func MakeUnknownErrReply() *UnknownErrReply {
+	return unknownErrReply
+}
 
 func (r *UnknownErrReply) ToBytes() []byte {
 	return unknownErrBytes

@@ -9,34 +9,26 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 )
 
-// Config tcp服务器的配置
-type Config struct {
-	Address    string        `yaml:"address"`     // ip:port
-	MaxConnect uint32        `yaml:"max-connect"` // 最大连接数
-	Timeout    time.Duration `yaml:"timeout"`     // 超时时间
-}
-
 type Server struct {
-	config   Config
+	address  string
 	handler  _interface.Handler
 	closeCh  chan struct{}
 	signalCh chan os.Signal
 }
 
-func MakeTcpServer(config Config, handler _interface.Handler) *Server {
+func MakeTcpServer(address string, handler _interface.Handler) *Server {
 	return &Server{
-		config:   config,
+		address:  address,
 		handler:  handler,
 		closeCh:  make(chan struct{}),
 		signalCh: make(chan os.Signal),
 	}
 }
 
-// ListenAndServeWithSignal 开启服务，并监听中断信号
-func (server *Server) ListenAndServeWithSignal() error {
+// Start 开启服务
+func (server *Server) Start() error {
 	signal.Notify(server.signalCh, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 
 	// 开启goroutine，用于监听并处理signal
@@ -49,11 +41,11 @@ func (server *Server) ListenAndServeWithSignal() error {
 	}()
 
 	// 创建listener
-	listener, err := net.Listen("tcp", server.config.Address)
+	listener, err := net.Listen("tcp", server.address)
 	if err != nil {
 		return err
 	}
-	logger.Info(fmt.Sprintf("bind %s successful, start listening...", server.config.Address))
+	logger.Info(fmt.Sprintf("bind %s successful, start listening...", server.address))
 	server.ListenAndServe(listener)
 	return nil
 }

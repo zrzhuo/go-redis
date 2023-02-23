@@ -3,8 +3,9 @@ package tcp
 import (
 	_interface "go-redis/interface"
 	"go-redis/redis"
+	"go-redis/redis/commands"
 	"go-redis/resp"
-	"go-redis/resp/reply"
+	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	_sync "go-redis/utils/sync"
 	"io"
@@ -13,29 +14,31 @@ import (
 	"sync"
 )
 
-type Handler struct {
-	engine     _interface.DB
-	activeConn sync.Map      // *client -> placeholder  // 并发安全的map，其key用于存放"活动中的连接"
-	closing    _sync.Boolean // refusing new client and new request  // 原子类型的bool，标志当前handler是否处于"closing"的状态
+type RedisHandler struct {
+	redisEngine _interface.DB
+	connections sync.Map      // 并发安全的map，其key用于存放"活动中的连接"
+	closing     _sync.Boolean // 原子类型的bool，标志当前handler是否处于"closing"的状态
 }
 
-func MakeHandler() *Handler {
+func MakeRedisHandler() *RedisHandler {
 	db := redis.MakeServer()
-	return &Handler{
-		engine: db,
+	// 注册所有命令
+	commands.RegisterAllCommand()
+	return &RedisHandler{
+		redisEngine: db,
 	}
 }
 
 // Handle 接收并执行命令
-func (handler *Handler) Handle(conn net.Conn) {
+func (handler *RedisHandler) Handle(conn net.Conn) {
 	if handler.closing.Get() {
 		_ = conn.Close() // handler正处于closing状态，拒绝该连接
 		return
 	}
 
-	// 建立RedisConn，并存入activeConn
+	// 包装为RedisConn，并存入activeConn
 	redisConn := redis.NewRedisConn(conn)
-	handler.activeConn.Store(redisConn, struct{}{})
+	handler.connections.Store(redisConn, struct{}{})
 
 	// handle
 	parser := resp.MakeParser(redisConn.Conn)
@@ -49,7 +52,7 @@ func (handler *Handler) Handle(conn net.Conn) {
 				return
 			}
 			// 其他错误
-			errReply := reply.MakeErrReply(payload.Err.Error())
+			errReply := Reply.MakeErrReply(payload.Err.Error())
 			_, err := redisConn.Write(errReply.ToBytes())
 			if err != nil {
 				handler.closeRedisConn(redisConn)
@@ -63,39 +66,39 @@ func (handler *Handler) Handle(conn net.Conn) {
 			continue
 		}
 		// 构建commands
-		rep, ok := payload.Data.(*reply.MultiBulkReply)
+		reply, ok := payload.Data.(*Reply.MultiBulkReply)
 		if !ok {
-			logger.Error("wrong commands: require multi bulk strings")
+			logger.Error("wrong commands line: require multi bulk strings")
 			continue
 		}
-		commands := rep.Args
+		cmdLine := reply.Args
 		// 执行命令
-		result := handler.engine.Exec(redisConn, commands)
+		result := handler.redisEngine.Exec(redisConn, cmdLine)
 		if result != nil {
 			_, _ = redisConn.Write(result.ToBytes())
 		} else {
-			_, _ = redisConn.Write([]byte("-ERR unknown\r\n"))
+			_, _ = redisConn.Write(Reply.MakeUnknownErrReply().ToBytes())
 		}
 	}
 }
 
 // Close stops handler
-func (handler *Handler) Close() error {
+func (handler *RedisHandler) Close() error {
 	logger.Info("handler shutting down...")
 	handler.closing.Set(true) // 设置为closing状态
-	handler.activeConn.Range(func(key interface{}, val interface{}) bool {
+	handler.connections.Range(func(key any, val any) bool {
 		client := key.(*redis.Connection)
 		_ = client.Close() // 逐个关闭连接
 		return true
 	})
-	handler.engine.Close() // 关闭数据库
+	handler.redisEngine.Close() // 关闭数据库
 	return nil
 }
 
 // 关闭指定连接
-func (handler *Handler) closeRedisConn(redisConn *redis.Connection) {
+func (handler *RedisHandler) closeRedisConn(redisConn *redis.Connection) {
 	_ = redisConn.Close()
-	handler.engine.AfterConnClose(redisConn)
-	handler.activeConn.Delete(redisConn)
+	handler.redisEngine.AfterConnClose(redisConn)
+	handler.connections.Delete(redisConn)
 
 }

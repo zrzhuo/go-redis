@@ -32,20 +32,20 @@ type aofMsg struct {
 type Persister struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	server *Server
-	dbIdx  int // 当前针对的数据库
+	server *Server // 当前针对的服务实例
+	dbIdx  int     // 当前针对的server中的数据库
 
-	aofFilePath string   // aof文件路径
-	aofFsync    string   // aof文件写入策略：always/everysec/no
-	aofFile     *os.File // aof文件描述符
+	filename string   // aof文件路径
+	fsync    string   // aof文件写入策略：always/everysec/no
+	file     *os.File // aof文件描述符
 
-	aofMsgCh  chan *aofMsg  // 主线程通知Persister进行aof
-	aofDoneCh chan struct{} // 通知主线程aof操作已完成
-	closed    bool          // aofChan是否被暂时关闭
+	closed bool          // aofChan是否被暂时关闭
+	msgCh  chan *aofMsg  // 主线程通知Persister进行aof
+	doneCh chan struct{} // 通知主线程aof操作已完成
 }
 
 // NewPersister creates a new aof.Persister
-func NewPersister(server *Server, filename string, fsync string, load bool) (*Persister, error) {
+func NewPersister(server *Server, filename string, fsync string) (*Persister, error) {
 	var pst = &Persister{}
 	ctx, cancel := context.WithCancel(context.Background())
 	pst.ctx = ctx
@@ -53,40 +53,33 @@ func NewPersister(server *Server, filename string, fsync string, load bool) (*Pe
 	pst.server = server
 	pst.dbIdx = 0
 
-	pst.aofFilePath = filename
-	pst.aofFsync = fsync
-	aofFile, err := os.OpenFile(pst.aofFilePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
+	pst.filename = filename
+	pst.fsync = fsync
+	aofFile, err := os.OpenFile(pst.filename, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
-	pst.aofFile = aofFile
+	pst.file = aofFile
 
-	pst.aofMsgCh = make(chan *aofMsg, aofChanSize)
-	pst.aofDoneCh = make(chan struct{})
 	pst.closed = false
+	pst.msgCh = make(chan *aofMsg, aofChanSize)
+	pst.doneCh = make(chan struct{})
 
-	//// 加载aof文件
-	//if load {
-	//	pst.readAof()
-	//}
-
-	// 监听aofMsgCh，写入aof文件
-	go func() {
-		pst.listening()
-	}()
-
-	// 每秒做一次持久化
-	if pst.aofFsync == FsyncEverysec {
-		pst.fsyncEverySecond()
-	}
 	return pst, nil
 }
 
 func (pst *Persister) listening() {
-	for msg := range pst.aofMsgCh {
-		pst.writeAof(msg)
+
+	go func() {
+		for msg := range pst.msgCh {
+			pst.writeAof(msg)
+		}
+		pst.doneCh <- struct{}{}
+	}()
+	// 每秒做一次持久化
+	if pst.fsync == FsyncEverysec {
+		pst.fsyncEverySecond()
 	}
-	pst.aofDoneCh <- struct{}{}
 }
 
 func (pst *Persister) ToAOF(dbIdx int, cmdLine _type.CmdLine) {
@@ -94,7 +87,7 @@ func (pst *Persister) ToAOF(dbIdx int, cmdLine _type.CmdLine) {
 	if pst.closed {
 		return
 	}
-	if pst.aofFsync == FsyncAlways {
+	if pst.fsync == FsyncAlways {
 		// 直接写入
 		p := &aofMsg{
 			cmdLine: cmdLine,
@@ -104,7 +97,7 @@ func (pst *Persister) ToAOF(dbIdx int, cmdLine _type.CmdLine) {
 		return
 	}
 	// 放入aofChan，等待aof协程执行写入
-	pst.aofMsgCh <- &aofMsg{
+	pst.msgCh <- &aofMsg{
 		cmdLine: cmdLine,
 		dbIdx:   dbIdx,
 	}
@@ -116,7 +109,7 @@ func (pst *Persister) writeAof(p *aofMsg) {
 		// 写入一个"Select db"命令
 		cmdLine := utils.ToCmdLine("SELECT", strconv.Itoa(p.dbIdx))
 		data := Reply.MakeMultiBulkReply(cmdLine).ToBytes()
-		_, err := pst.aofFile.Write(data) // 写入
+		_, err := pst.file.Write(data) // 写入
 		if err != nil {
 			logger.Warn(err)
 			return // 此时应该跳过这条命令
@@ -125,23 +118,23 @@ func (pst *Persister) writeAof(p *aofMsg) {
 	}
 	// 写入当前命令
 	data := Reply.MakeMultiBulkReply(p.cmdLine).ToBytes()
-	_, err := pst.aofFile.Write(data) // 写入
+	_, err := pst.file.Write(data) // 写入
 	if err != nil {
 		logger.Warn(err)
 	}
-	if pst.aofFsync == FsyncAlways {
-		_ = pst.aofFile.Sync()
+	if pst.fsync == FsyncAlways {
+		_ = pst.file.Sync()
 	}
 }
 
-func (pst *Persister) readAof() {
+func (pst *Persister) ReadAof() {
 	// 将aof通道暂时关闭
 	pst.closeChan()
 	defer func() {
 		pst.openChan()
 	}()
 
-	file, err := os.Open(pst.aofFilePath)
+	file, err := os.Open(pst.filename)
 	if err != nil {
 		if _, ok := err.(*os.PathError); ok {
 			return
@@ -187,10 +180,10 @@ func (pst *Persister) readAof() {
 }
 
 func (pst *Persister) Close() {
-	if pst.aofFile != nil {
-		close(pst.aofMsgCh)
-		<-pst.aofDoneCh
-		err := pst.aofFile.Close()
+	if pst.file != nil {
+		close(pst.msgCh)
+		<-pst.doneCh
+		err := pst.file.Close()
 		if err != nil {
 			logger.Warn(err)
 		}
@@ -205,7 +198,7 @@ func (pst *Persister) fsyncEverySecond() {
 			select {
 			case <-ticker.C:
 				//pst.pausingAof.Lock()
-				if err := pst.aofFile.Sync(); err != nil {
+				if err := pst.file.Sync(); err != nil {
 					logger.Error("fsync failed: " + err.Error())
 				}
 				//pst.pausingAof.Unlock()

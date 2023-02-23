@@ -48,7 +48,7 @@ func execDel(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	count := db.Removes(keys...)
 	if count > 0 {
-		// aof
+		db.ToAof(utils.ToCmdLine3("Del", args...))
 	}
 	return reply2.MakeIntReply(int64(count))
 }
@@ -65,7 +65,7 @@ func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	expireAt := time.Now().Add(time.Duration(num) * time.Second)
 	db.SetExpire(key, expireAt)
-	//db.addAof(aof.MakeExpireCmd(key, expireAt).Args)
+	//db.ToAof(aof.MakeExpireCmd(key, expireAt).Args)
 	return reply2.MakeIntReply(1) // 设置成功时返回1
 }
 

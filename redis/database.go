@@ -28,7 +28,7 @@ type Database struct {
 	ttl     Dict.Dict[string, time.Time]     // 超时时间
 	version Dict.Dict[string, uint32]        // 版本
 	locker  *Lock.Locks                      // 锁，用于执行命令时为key加锁
-	AddAof  func(_type.CmdLine)              // 添加命令到aof
+	ToAof   func(_type.CmdLine)              // 添加命令到aof
 }
 
 func MakeDatabase(idx int) *Database {

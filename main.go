@@ -1,27 +1,17 @@
 package main
 
 import (
-	"go-redis/redis/commands"
+	"fmt"
+	"go-redis/redis"
 	"go-redis/tcp"
 	"go-redis/utils/logger"
-	"time"
 )
-
-var tcpCfg = tcp.Config{
-	Address:    "localhost:6666",
-	MaxConnect: 10,
-	Timeout:    10 * time.Second,
-}
-
-//var echoHandler = tcp.MakeEchoHandler()
-
-var redisHandler = tcp.MakeHandler()
 
 func main() {
 	print("go-redis running...\n")
-	tcpServer := tcp.MakeTcpServer(tcpCfg, redisHandler)
-	commands.RegisterAllCommand()
-	err := tcpServer.ListenAndServeWithSignal()
+	redis.ParseConfig("redis.conf") // 从redis.conf中读取配置
+	address := fmt.Sprintf("%s:%d", redis.Config.Bind, redis.Config.Port)
+	err := tcp.MakeTcpServer(address, tcp.MakeRedisHandler()).Start()
 	if err != nil {
 		logger.Error(err)
 		return

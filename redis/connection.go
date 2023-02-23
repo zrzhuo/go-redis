@@ -2,7 +2,7 @@ package redis
 
 import (
 	"go-redis/utils/logger"
-	sync2 "go-redis/utils/sync"
+	_sync "go-redis/utils/sync"
 	"net"
 	"sync"
 	"time"
@@ -18,7 +18,7 @@ type Connection struct {
 	Conn       net.Conn
 	flags      uint64
 	selectedDB int
-	wait       sync2.Wait      // wait until finish sending data, used for graceful shutdown
+	wait       _sync.Wait      // wait until finish sending data, used for graceful shutdown
 	mu         sync.Mutex      // lock while engine sending response
 	subs       map[string]bool // subscribing channels
 	password   string          // password may be changed by CONFIG commands during runtime, so store the password
