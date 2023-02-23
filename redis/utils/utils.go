@@ -38,7 +38,6 @@ func Equals(a interface{}, b interface{}) bool {
 	return a == b
 }
 
-// BytesEquals check whether the given bytes is equal
 func BytesEquals(a []byte, b []byte) bool {
 	if (a == nil && b != nil) || (a != nil && b == nil) {
 		return false

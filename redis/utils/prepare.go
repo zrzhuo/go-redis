@@ -29,3 +29,8 @@ func ReadAllKeys(args _type.Args) ([]string, []string) {
 	}
 	return nil, keys
 }
+
+func ReadTwoKeys(args _type.Args) ([]string, []string) {
+	key1, key2 := string(args[0]), string(args[1])
+	return []string{key1, key2}, nil
+}

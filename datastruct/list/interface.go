@@ -19,4 +19,9 @@ type List[T any] interface {
 	Contains(condition Condition[T]) bool            // 判断列表中是否具有满足条件的元素
 	Range(start int, stop int) []T                   // 获取指定区间[start, stop)内的所有元素
 	ForEach(consumer Consumer[T])
+
+	LPush(val T)
+	RPush(val T)
+	LPop() T
+	RPop() T
 }

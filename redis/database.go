@@ -113,7 +113,7 @@ func (db *Database) SetExpire(key string, expire time.Time) {
 	})
 }
 
-func (db *Database) cancelExpire(key string) {
+func (db *Database) CancelExpire(key string) {
 	db.ttl.Remove(key)
 	taskKey := "expire:" + key
 	timewheel.Cancel(taskKey)
@@ -144,7 +144,7 @@ func (db *Database) GetEntity(key string) (*_type.Entity, bool) {
 	return entity, true
 }
 
-func (db *Database) PutEntity(key string, entity *_type.Entity) int {
+func (db *Database) Put(key string, entity *_type.Entity) int {
 	return db.data.Put(key, entity)
 }
 
@@ -255,7 +255,7 @@ func (db *Database) GetOrInitList(key string) (list List.List[[]byte], isNew boo
 		// 初始化list
 		list = List.MakeQuickList[[]byte]()
 		entity := _type.NewEntity(list)
-		db.PutEntity(key, entity)
+		db.Put(key, entity)
 		isNew = true
 	}
 	return list, isNew, nil
@@ -271,7 +271,7 @@ func (db *Database) GetOrInitSet(key string) (set *Set.Set[string], isNew bool, 
 		// 初始化set
 		set = Set.MakeSimpleSet[string]()
 		entity := _type.NewEntity(set)
-		db.PutEntity(key, entity)
+		db.Put(key, entity)
 		isNew = true
 	}
 	return set, isNew, nil
@@ -296,7 +296,7 @@ func (db *Database) GetOrInitZSet(key string) (zset *ZSet.SortedSet[string], isN
 		}
 		zset = ZSet.MakeSortedSet[string](compare)
 		entity := _type.NewEntity(zset)
-		db.PutEntity(key, entity)
+		db.Put(key, entity)
 		isNew = true
 	}
 	return zset, isNew, nil
@@ -312,7 +312,7 @@ func (db *Database) GetOrInitDict(key string) (set Dict.Dict[string, []byte], is
 		// 初始化set
 		set = Dict.MakeSimpleDict[string, []byte]()
 		entity := _type.NewEntity(set)
-		db.PutEntity(key, entity)
+		db.Put(key, entity)
 		isNew = true
 	}
 	return set, isNew, nil

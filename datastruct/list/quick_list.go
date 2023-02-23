@@ -218,6 +218,22 @@ func (list *QuickList[T]) ForEach(consumer Consumer[T]) {
 	}
 }
 
+func (list *QuickList[T]) LPush(val T) {
+	list.Insert(0, val)
+}
+
+func (list *QuickList[T]) RPush(val T) {
+	list.Insert(list.size, val)
+}
+
+func (list *QuickList[T]) LPop() T {
+	return list.Remove(0)
+}
+
+func (list *QuickList[T]) RPop() T {
+	return list.Remove(list.size - 1)
+}
+
 // 返回一个iterator用于定位元素
 func (list *QuickList[T]) find(idx int) *iterator[T] {
 	if list == nil {

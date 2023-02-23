@@ -238,6 +238,22 @@ func (list *DLinkedList[T]) ForEach(consumer Consumer[T]) {
 	}
 }
 
+func (list *DLinkedList[T]) LPush(val T) {
+	list.Insert(0, val)
+}
+
+func (list *DLinkedList[T]) RPush(val T) {
+	list.Insert(list.size, val)
+}
+
+func (list *DLinkedList[T]) LPop() T {
+	return list.Remove(0)
+}
+
+func (list *DLinkedList[T]) RPop() T {
+	return list.Remove(list.size - 1)
+}
+
 func (list *DLinkedList[T]) boundCheck(idx int) {
 	if idx < 0 || idx >= list.size {
 		panic(fmt.Sprintf("the index %d out of bound of [0, %d]", idx, list.size-1))

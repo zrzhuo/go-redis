@@ -63,9 +63,9 @@ func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	if !existed {
 		return reply2.MakeIntReply(0) // key不存在时返回0
 	}
-	expireAt := time.Now().Add(time.Duration(num) * time.Second)
-	db.SetExpire(key, expireAt)
-	//db.ToAof(aof.MakeExpireCmd(key, expireAt).Args)
+	expireTime := time.Now().Add(time.Duration(num) * time.Second)
+	db.SetExpire(key, expireTime)
+	//db.ToAof(aof.MakeExpireCmd(key, expireTime).Args)
 	return reply2.MakeIntReply(1) // 设置成功时返回1
 }
 
@@ -79,8 +79,8 @@ func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	if !exists {
 		return reply2.MakeIntReply(0)
 	}
-	expireAt := time.Unix(ttl, 0)
-	db.SetExpire(key, expireAt)
-	//db.addAof(aof.MakeExpireCmd(key, expireAt).Args)
+	expireTime := time.Unix(ttl, 0)
+	db.SetExpire(key, expireTime)
+	//db.addAof(aof.MakeExpireCmd(key, expireTime).Args)
 	return reply2.MakeIntReply(1)
 }
