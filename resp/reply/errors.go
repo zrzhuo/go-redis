@@ -53,7 +53,7 @@ func MakeArgNumErrReply(cmd string) *ArgNumErrReply {
 }
 
 func (r *ArgNumErrReply) ToBytes() []byte {
-	return []byte("-ERR: wrong number of arguments in '" + r.Cmd + "'" + CRLF)
+	return []byte("-ERR: wrong number of arguments for '" + r.Cmd + "' command" + CRLF)
 }
 
 func (r *ArgNumErrReply) Error() string {

@@ -5,7 +5,7 @@ import (
 	_type "go-redis/interface/type"
 	"go-redis/redis"
 	"go-redis/redis/utils"
-	reply2 "go-redis/resp/reply"
+	Reply "go-redis/resp/reply"
 	"strconv"
 )
 
@@ -29,7 +29,7 @@ func init() {
 
 func execZAdd(db *redis.Database, args _type.Args) _interface.Reply {
 	if len(args)%2 != 1 {
-		return reply2.MakeArgNumErrReply("number of parameters must be odd.")
+		return Reply.MakeArgNumErrReply("ZAdd")
 	}
 	key, num := string(args[0]), (len(args)-1)/2
 	zset, _, errReply := db.GetOrInitZSet(key)
@@ -41,12 +41,12 @@ func execZAdd(db *redis.Database, args _type.Args) _interface.Reply {
 		member := string(args[2*i+2])
 		score, err := strconv.ParseFloat(string(args[2*i+1]), 64)
 		if err != nil {
-			return reply2.MakeErrReply("value is not a valid float")
+			return Reply.MakeErrReply("value is not a valid float")
 		}
 		count += zset.Add(member, score)
 	}
-	//db.addAof(utils.ToCmdLine3("zadd", args...))
-	return reply2.MakeIntReply(int64(count))
+	//db.addAof(utils.ToCmdLine("zadd", args...))
+	return Reply.MakeIntReply(int64(count))
 }
 
 func execZRank(db *redis.Database, args _type.Args) _interface.Reply {
@@ -56,13 +56,13 @@ func execZRank(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return reply2.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
 	rank := zset.GetRank(member, false)
 	if rank < 0 {
-		return reply2.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
-	return reply2.MakeIntReply(int64(rank))
+	return Reply.MakeIntReply(int64(rank))
 }
 
 func execZScore(db *redis.Database, args _type.Args) _interface.Reply {
@@ -72,12 +72,12 @@ func execZScore(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return reply2.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
 	score, existed := zset.Get(member)
 	if !existed {
-		return reply2.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
 	value := strconv.FormatFloat(score, 'f', -1, 64)
-	return reply2.MakeBulkReply([]byte(value))
+	return Reply.MakeBulkReply([]byte(value))
 }

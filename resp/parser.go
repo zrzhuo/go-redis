@@ -4,7 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	reply3 "go-redis/resp/reply"
+	"go-redis/redis/utils"
+	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	"io"
 	"runtime/debug"
@@ -23,12 +24,17 @@ func MakeParser(reader io.Reader) *Parser {
 	}
 }
 
-func (parser *Parser) ParseStream() <-chan *Payload {
-	go parser.parsing()
+func (parser *Parser) ParseFile() <-chan *Payload {
+	go parser.parseRESP()
 	return parser.ch
 }
 
-func (parser *Parser) parsing() {
+func (parser *Parser) ParseCLI() <-chan *Payload {
+	go parser.parseCmdLines()
+	return parser.ch
+}
+
+func (parser *Parser) parseRESP() {
 	// 异常处理
 	defer func() {
 		if err := recover(); err != nil {
@@ -76,7 +82,7 @@ func (parser *Parser) parsing() {
 			}
 		case ':':
 			// 整数(Integer)
-			err := parser.paresInteger(line)
+			err := parser.parseInteger(line)
 			if err != nil {
 				parser.ch <- &Payload{Err: err}
 				close(parser.ch)
@@ -84,36 +90,56 @@ func (parser *Parser) parsing() {
 			}
 		case '-':
 			// 错误信息(Error)
-			reply := reply3.MakeErrReply(string(line[1:]))
-			parser.ch <- &Payload{Data: reply}
-		default:
-			// 其他情况
-			args := bytes.Split(line, []byte{' '})
-			reply := reply3.MakeMultiBulkReply(args)
+			reply := Reply.MakeErrReply(string(line[1:]))
 			parser.ch <- &Payload{Data: reply}
 		}
 	}
 }
 
-func (parser *Parser) paresInteger(line []byte) error {
+func (parser *Parser) parseCmdLines() {
+	// 异常处理
+	defer func() {
+		if err := recover(); err != nil {
+			logger.Error(err, string(debug.Stack()))
+		}
+	}()
+	// parsing
+	for {
+		line, err := parser.reader.ReadBytes('\n')
+		if err != nil {
+			parser.ch <- &Payload{Err: err}
+			close(parser.ch)
+			return // 读取出现错误，终止
+		}
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue // 忽略空行
+		}
+		cmdLine, err := utils.ParseCmds(line)
+		if err != nil {
+			parser.ch <- &Payload{Err: err}
+			continue // 命令行解析错误
+		}
+		reply := Reply.MakeMultiBulkReply(cmdLine)
+		parser.ch <- &Payload{Data: reply}
+	}
+}
+
+func (parser *Parser) parseInteger(line []byte) error {
 	value, err := strconv.ParseInt(string(line[1:]), 10, 64)
 	if err != nil {
 		parser.handleError("illegal number '" + string(line[1:]) + "'")
 		return nil
 	}
-	reply := reply3.MakeIntReply(value)
+	reply := Reply.MakeIntReply(value)
 	parser.ch <- &Payload{Data: reply}
 	return nil
 }
 
 func (parser *Parser) parseSimpleString(line []byte) error {
 	status := string(line[1:])
-	reply := reply3.MakeStatusReply(status)
+	reply := Reply.MakeStatusReply(status)
 	parser.ch <- &Payload{Data: reply}
-	//if strings.HasPrefix(status, "FULLRESYNC") {
-	//	err := parser.parseRDBBulkString()
-	//	return err
-	//}
 	return nil
 }
 
@@ -123,7 +149,7 @@ func (parser *Parser) parseBulkString(header []byte) error {
 		parser.handleError("illegal bulk string header '" + string(header) + "'")
 		return nil
 	} else if size == -1 {
-		reply := reply3.MakeNullBulkReply() // Null Bulk String
+		reply := Reply.MakeNullBulkReply() // Null Bulk String
 		parser.ch <- &Payload{Data: reply}
 		return nil
 	} else {
@@ -133,7 +159,7 @@ func (parser *Parser) parseBulkString(header []byte) error {
 			return err
 		}
 		args := body[:len(body)-2] // 去掉末尾的CRLF
-		reply := reply3.MakeBulkReply(args)
+		reply := Reply.MakeBulkReply(args)
 		parser.ch <- &Payload{Data: reply}
 		return nil
 	}
@@ -145,7 +171,7 @@ func (parser *Parser) parseMultiBulk(header []byte) error {
 		parser.handleError("illegal multi bulk header '" + string(header[1:]) + "'")
 		return nil
 	} else if size == 0 {
-		reply := reply3.MakeEmptyMultiBulkReply() // Empty Multi Bulk Strings
+		reply := Reply.MakeEmptyMultiBulkReply() // Empty Multi Bulk Strings
 		parser.ch <- &Payload{Data: reply}
 		return nil
 	}
@@ -175,30 +201,8 @@ func (parser *Parser) parseMultiBulk(header []byte) error {
 			bulks = append(bulks, body[:len(body)-2]) // 去掉末尾的CRLF
 		}
 	}
-	reply := reply3.MakeMultiBulkReply(bulks)
+	reply := Reply.MakeMultiBulkReply(bulks)
 	parser.ch <- &Payload{Data: reply}
-	return nil
-}
-
-// there is no CRLF between RDB and following AOF, therefore it needs to be treated differently
-func (parser *Parser) parseRDBBulkString() error {
-	header, err := parser.reader.ReadBytes('\n')
-	header = bytes.TrimSuffix(header, []byte{'\r', '\n'})
-	if len(header) == 0 {
-		return errors.New("empty header")
-	}
-	strLen, err := strconv.ParseInt(string(header[1:]), 10, 64) // 解析字符串长度
-	if err != nil || strLen <= 0 {
-		return errors.New("illegal bulk header: " + string(header))
-	}
-	body := make([]byte, strLen)
-	_, err = io.ReadFull(parser.reader, body) // 读取字节到body直到body填满
-	if err != nil {
-		return err
-	}
-	parser.ch <- &Payload{
-		Data: reply3.MakeBulkReply(body[:]),
-	}
 	return nil
 }
 

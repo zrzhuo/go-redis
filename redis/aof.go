@@ -107,7 +107,7 @@ func (pst *Persister) writeAof(p *aofMsg) {
 	// pst针对的db与目标db不符
 	if p.dbIdx != pst.dbIdx {
 		// 写入一个"Select db"命令
-		cmdLine := utils.ToCmdLine("SELECT", strconv.Itoa(p.dbIdx))
+		cmdLine := utils.ToCmdLine("SELECT", []byte(strconv.Itoa(p.dbIdx)))
 		data := Reply.MakeMultiBulkReply(cmdLine).ToBytes()
 		_, err := pst.file.Write(data) // 写入
 		if err != nil {
@@ -144,7 +144,7 @@ func (pst *Persister) ReadAof() {
 	}
 	defer file.Close()
 
-	ch := resp.MakeParser(file).ParseStream()
+	ch := resp.MakeParser(file).ParseFile()
 	aofConn := GetAofConn()
 	for payload := range ch {
 		if payload.Err != nil {

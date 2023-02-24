@@ -5,7 +5,7 @@ import (
 	_type "go-redis/interface/type"
 	"go-redis/redis"
 	"go-redis/redis/utils"
-	reply2 "go-redis/resp/reply"
+	Reply "go-redis/resp/reply"
 	"strconv"
 	"time"
 )
@@ -15,20 +15,18 @@ func init() {
 	redis.RegisterCommand("Del", execDel, utils.WriteAllKeys, -2, redis.ReadWrite)
 	redis.RegisterCommand("Expire", execExpire, utils.WriteFirstKey, 3, redis.ReadWrite)
 	redis.RegisterCommand("ExpireAt", execExpireAt, utils.WriteFirstKey, 3, redis.ReadWrite)
-	//redis.RegisterCommand("ExpireTime", execExpireTime, readFirstKey, 2, flagReadOnly)
-	//RegisterCommand("PExpire", execPExpire, writeFirstKey, undoExpire, 3, flagWrite)
-	//RegisterCommand("PExpireAt", execPExpireAt, writeFirstKey, undoExpire, 3, flagWrite)
-	//RegisterCommand("PExpireTime", execPExpireTime, readFirstKey, nil, 2, flagReadOnly)
-	//RegisterCommand("TTL", execTTL, readFirstKey, nil, 2, flagReadOnly)
-	//RegisterCommand("PTTL", execPTTL, readFirstKey, nil, 2, flagReadOnly)
-	//RegisterCommand("Persist", execPersist, writeFirstKey, undoExpire, 2, flagWrite)
+	redis.RegisterCommand("TTL", execTTL, utils.ReadFirstKey, 2, redis.ReadOnly)
+	redis.RegisterCommand("ExpireTime", execExpireTime, utils.ReadFirstKey, 2, redis.ReadOnly)
+	redis.RegisterCommand("PExpire", execPExpire, utils.WriteFirstKey, 3, redis.ReadWrite)
+	redis.RegisterCommand("PExpireAt", execPExpireAt, utils.WriteFirstKey, 3, redis.ReadWrite)
+	redis.RegisterCommand("PTTL", execPTTL, utils.ReadFirstKey, 2, redis.ReadOnly)
+	redis.RegisterCommand("PExpireTime", execPExpireTime, utils.ReadFirstKey, 2, redis.ReadOnly)
+	redis.RegisterCommand("Persist", execPersist, utils.WriteFirstKey, 2, redis.ReadWrite)
 	//RegisterCommand("Type", execType, readFirstKey, nil, 2, flagReadOnly)
 	//RegisterCommand("Rename", execRename, prepareRename, undoRename, 3, flagReadOnly)
 	//RegisterCommand("RenameNx", execRenameNx, prepareRename, undoRename, 3, flagReadOnly)
 	//RegisterCommand("Keys", execKeys, noPrepare, nil, 2, flagReadOnly)
 }
-
-/*----- Execute: func(db *redis.Database, args _type.Args) _interface.Reply -----*/
 
 func execExists(db *redis.Database, args _type.Args) _interface.Reply {
 	var count int64 = 0
@@ -38,7 +36,7 @@ func execExists(db *redis.Database, args _type.Args) _interface.Reply {
 			count++
 		}
 	}
-	return reply2.MakeIntReply(count)
+	return Reply.MakeIntReply(count)
 }
 
 func execDel(db *redis.Database, args _type.Args) _interface.Reply {
@@ -48,39 +46,141 @@ func execDel(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	count := db.Removes(keys...)
 	if count > 0 {
-		db.ToAof(utils.ToCmdLine3("Del", args...))
+		db.ToAof(utils.ToCmdLine("Del", args...))
 	}
-	return reply2.MakeIntReply(int64(count))
+	return Reply.MakeIntReply(int64(count))
 }
 
 func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
-	num, err := strconv.ParseInt(string(args[1]), 10, 64)
+	ttlArg, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return reply2.MakeErrReply("illegal integer")
+		return Reply.MakeErrReply("illegal integer for ttl")
 	}
 	key := string(args[0])
 	_, existed := db.GetEntity(key)
 	if !existed {
-		return reply2.MakeIntReply(0) // key不存在时返回0
+		return Reply.MakeIntReply(0) // key不存在，返回0
 	}
-	expireTime := time.Now().Add(time.Duration(num) * time.Second)
+	ttl := time.Duration(ttlArg) * time.Second // 以秒为单位
+	expireTime := time.Now().Add(ttl)
 	db.SetExpire(key, expireTime)
-	//db.ToAof(aof.MakeExpireCmd(key, expireTime).Args)
-	return reply2.MakeIntReply(1) // 设置成功时返回1
+	db.ToAof(utils.ToExpireCmd(key, expireTime))
+	return Reply.MakeIntReply(1) // 设置成功，返回1
+}
+
+func execPExpire(db *redis.Database, args _type.Args) _interface.Reply {
+	ttlArg, err := strconv.ParseInt(string(args[1]), 10, 64)
+	if err != nil {
+		return Reply.MakeErrReply("illegal integer for ttl")
+	}
+	key := string(args[0])
+	_, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeIntReply(0) // key不存在，返回0
+	}
+	ttl := time.Duration(ttlArg) * time.Millisecond // 以毫秒为单位
+	expireTime := time.Now().Add(ttl)
+	db.SetExpire(key, expireTime)
+	db.ToAof(utils.ToExpireCmd(key, expireTime))
+	return Reply.MakeIntReply(1) // 设置成功，返回1
 }
 
 func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	ttl, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return reply2.MakeErrReply("illegal integer")
+		return Reply.MakeErrReply("illegal integer for ttl")
 	}
 	key := string(args[0])
-	_, exists := db.GetEntity(key)
-	if !exists {
-		return reply2.MakeIntReply(0)
+	_, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeIntReply(0) // key不存在，返回0
 	}
-	expireTime := time.Unix(ttl, 0)
+	expireTime := time.Unix(ttl, 0) // 以秒为单位的unix时间
 	db.SetExpire(key, expireTime)
-	//db.addAof(aof.MakeExpireCmd(key, expireTime).Args)
-	return reply2.MakeIntReply(1)
+	db.ToAof(utils.ToExpireCmd(key, expireTime))
+	return Reply.MakeIntReply(1) // 设置成功，返回1
+}
+
+func execPExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
+	ttl, err := strconv.ParseInt(string(args[1]), 10, 64)
+	if err != nil {
+		return Reply.MakeErrReply("illegal integer for ttl")
+	}
+	key := string(args[0])
+	_, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeIntReply(0) // key不存在，返回0
+	}
+	expireTime := time.Unix(0, ttl*int64(time.Millisecond)) // 以毫秒为单位的unix时间
+	db.SetExpire(key, expireTime)
+	db.ToAof(utils.ToExpireCmd(key, expireTime))
+	return Reply.MakeIntReply(1) // 设置成功，返回1
+}
+
+func execTTL(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	_, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
+	}
+	expireTime, existed := db.Ttl.Get(key)
+	if !existed {
+		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
+	}
+	ttl := expireTime.Sub(time.Now())
+	return Reply.MakeIntReply(int64(ttl / time.Second)) // 返回过期时间，以秒为单位
+}
+
+func execPTTL(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	_, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
+	}
+	expireTime, existed := db.Ttl.Get(key)
+	if !existed {
+		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
+	}
+	ttl := expireTime.Sub(time.Now())
+	return Reply.MakeIntReply(int64(ttl / time.Millisecond)) // 返回过期时间，以毫秒为单位
+}
+
+func execExpireTime(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	_, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
+	}
+	expireTime, existed := db.Ttl.Get(key)
+	if !existed {
+		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
+	}
+	return Reply.MakeIntReply(expireTime.Unix()) // 返回过期时间，以秒为单位的unix时间
+}
+func execPExpireTime(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	_, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
+	}
+	expireTime, existed := db.Ttl.Get(key)
+	if !existed {
+		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
+	}
+	return Reply.MakeIntReply(expireTime.UnixMilli()) // 返回过期时间，以毫秒为单位的unix时间
+}
+
+func execPersist(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	_, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeIntReply(0) // key不存在(或已过期)，返回0
+	}
+	_, existed = db.Ttl.Get(key)
+	if !existed {
+		return Reply.MakeIntReply(0) // key存在但未设置过期时间，返回0
+	}
+	db.CancelExpire(key)
+	db.ToAof(utils.ToCmdLine("Persist", args...))
+	return Reply.MakeIntReply(1) // 取消过期成功，返回1
 }

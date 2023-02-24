@@ -34,7 +34,7 @@ func execHSet(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	result := dict.Put(field, value)
-	//db.addAof(utils.ToCmdLine3("hset", args...))
+	//db.addAof(utils.ToCmdLine("hset", args...))
 	return reply2.MakeIntReply(int64(result))
 }
 

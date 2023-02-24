@@ -22,6 +22,7 @@ func init() {
 func execSet(db *redis.Database, args _type.Args) _interface.Reply {
 	policy := ""
 	ttl := int64(0)
+	// 参数解析
 	for i := 2; i < len(args); i++ {
 		arg := strings.ToUpper(string(args[i]))
 		switch arg {
@@ -61,7 +62,7 @@ func execSet(db *redis.Database, args _type.Args) _interface.Reply {
 			return Reply.MakeSyntaxErrReply()
 		}
 	}
-
+	// put
 	key := string(args[0])
 	entity := _type.NewEntity(args[1])
 	var res int
@@ -73,16 +74,15 @@ func execSet(db *redis.Database, args _type.Args) _interface.Reply {
 	default:
 		res = db.Put(key, entity)
 	}
-
+	// aof和expire
 	if res > 0 {
+		db.ToAof(utils.ToCmdLine("Set", args[0], args[1]))
 		if ttl > 0 {
 			expireTime := time.Now().Add(time.Duration(ttl) * time.Millisecond)
 			db.SetExpire(key, expireTime)
-			db.ToAof(utils.ToCmdLine3("Set", args[0], args[1]))
-			//db.addAof(aof.MakeExpireCmd(key, expireTime).Args)
+			db.ToAof(utils.ToExpireCmd(key, expireTime))
 		} else {
 			db.CancelExpire(key)
-			db.ToAof(utils.ToCmdLine3("set", args...))
 		}
 		return Reply.MakeOkReply()
 	}
@@ -93,7 +93,7 @@ func execSetNX(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	entity := _type.NewEntity(args[1])
 	result := db.PutIfAbsent(key, entity)
-	db.ToAof(utils.ToCmdLine3("SetNX", args...))
+	db.ToAof(utils.ToCmdLine("SetNX", args...))
 	return Reply.MakeIntReply(int64(result))
 }
 
@@ -107,11 +107,13 @@ func execSetEX(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeErrReply("invalid expire time")
 	}
 	entity := _type.NewEntity(args[2])
+	// put
 	db.Put(key, entity)
+	db.ToAof(utils.ToCmdLine("SetEX", args...))
 	expireTime := time.Now().Add(time.Duration(ttl) * time.Millisecond)
+	// expire
 	db.SetExpire(key, expireTime)
-	db.ToAof(utils.ToCmdLine3("SetEX", args...))
-	//db.addAof(aof.MakeExpireCmd(key, expireTime).Args)
+	db.ToAof(utils.ToExpireCmd(key, expireTime))
 	return Reply.MakeOkReply()
 }
 

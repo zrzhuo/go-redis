@@ -42,7 +42,7 @@ func (handler *RedisHandler) Handle(conn net.Conn) {
 
 	// handle
 	parser := resp.MakeParser(redisConn.Conn)
-	ch := parser.ParseStream()
+	ch := parser.ParseCLI()
 	for payload := range ch {
 		if payload.Err != nil {
 			// EOF错误，连接已断开
@@ -100,5 +100,4 @@ func (handler *RedisHandler) closeRedisConn(redisConn *redis.Connection) {
 	_ = redisConn.Close()
 	handler.redisEngine.AfterConnClose(redisConn)
 	handler.connections.Delete(redisConn)
-
 }
