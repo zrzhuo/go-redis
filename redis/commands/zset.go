@@ -45,7 +45,7 @@ func execZAdd(db *redis.Database, args _type.Args) _interface.Reply {
 		}
 		count += zset.Add(member, score)
 	}
-	//db.addAof(utils.ToCmdLine("zadd", args...))
+	db.ToAof(utils.ToCmdLine("ZAdd", args...))
 	return Reply.MakeIntReply(int64(count))
 }
 

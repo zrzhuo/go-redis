@@ -111,7 +111,7 @@ func (parser *Parser) parseCmdLines() {
 			close(parser.ch)
 			return // 读取出现错误，终止
 		}
-		line = bytes.TrimSpace(line)
+		line = bytes.TrimSpace(line) // 去除两端空白
 		if len(line) == 0 {
 			continue // 忽略空行
 		}

@@ -1,6 +1,10 @@
 package commands
 
 import (
+	Dict "go-redis/datastruct/dict"
+	List "go-redis/datastruct/list"
+	Set "go-redis/datastruct/set"
+	"go-redis/datastruct/zset"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
 	"go-redis/redis"
@@ -22,7 +26,7 @@ func init() {
 	redis.RegisterCommand("PTTL", execPTTL, utils.ReadFirstKey, 2, redis.ReadOnly)
 	redis.RegisterCommand("PExpireTime", execPExpireTime, utils.ReadFirstKey, 2, redis.ReadOnly)
 	redis.RegisterCommand("Persist", execPersist, utils.WriteFirstKey, 2, redis.ReadWrite)
-	//RegisterCommand("Type", execType, readFirstKey, nil, 2, flagReadOnly)
+	redis.RegisterCommand("Type", execType, utils.ReadFirstKey, 2, redis.ReadOnly)
 	//RegisterCommand("Rename", execRename, prepareRename, undoRename, 3, flagReadOnly)
 	//RegisterCommand("RenameNx", execRenameNx, prepareRename, undoRename, 3, flagReadOnly)
 	//RegisterCommand("Keys", execKeys, noPrepare, nil, 2, flagReadOnly)
@@ -183,4 +187,25 @@ func execPersist(db *redis.Database, args _type.Args) _interface.Reply {
 	db.CancelExpire(key)
 	db.ToAof(utils.ToCmdLine("Persist", args...))
 	return Reply.MakeIntReply(1) // 取消过期成功，返回1
+}
+
+func execType(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	entity, existed := db.GetEntity(key)
+	if !existed {
+		return Reply.MakeStatusReply("none")
+	}
+	switch entity.Data.(type) {
+	case []byte:
+		return Reply.MakeStatusReply("string")
+	case List.List[[]byte]:
+		return Reply.MakeStatusReply("list")
+	case Dict.Dict[string, []byte]:
+		return Reply.MakeStatusReply("hash")
+	case Set.Set[string]:
+		return Reply.MakeStatusReply("set")
+	case zset.ZSet[string]:
+		return Reply.MakeStatusReply("zset")
+	}
+	return Reply.MakeUnknownErrReply()
 }

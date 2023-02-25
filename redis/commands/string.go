@@ -17,6 +17,9 @@ func init() {
 	redis.RegisterCommand("SetNX", execSetNX, utils.WriteFirstKey, 3, redis.ReadWrite)
 	redis.RegisterCommand("SetEX", execSetEX, utils.WriteFirstKey, 4, redis.ReadWrite)
 	redis.RegisterCommand("Get", execGet, utils.ReadFirstKey, 2, redis.ReadOnly)
+	redis.RegisterCommand("GetEX", execGetEX, utils.WriteFirstKey, -2, redis.ReadWrite)
+	redis.RegisterCommand("GetSet", execGetSet, utils.WriteFirstKey, 3, redis.ReadWrite)
+
 }
 
 func execSet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -39,7 +42,7 @@ func execSet(db *redis.Database, args _type.Args) _interface.Reply {
 			policy = "NX"
 		// 解析EX和PX：参数中只能存在一个EX或PX，其EX或PX之后必须紧跟时间参数
 		case "EX":
-			if ttl != 0 || i+1 > len(args) {
+			if ttl != 0 || i+1 >= len(args) {
 				return Reply.MakeSyntaxErrReply()
 			}
 			ttlArg, err := strconv.ParseInt(string(args[i+1]), 10, 64)
@@ -49,7 +52,7 @@ func execSet(db *redis.Database, args _type.Args) _interface.Reply {
 			ttl = ttlArg * 1000 // 以秒为单位
 			i++                 // 时间参数无需再解析
 		case "PX":
-			if ttl != 0 || i+1 > len(args) {
+			if ttl != 0 || i+1 >= len(args) {
 				return Reply.MakeSyntaxErrReply()
 			}
 			ttlArg, err := strconv.ParseInt(string(args[i+1]), 10, 64)
@@ -123,5 +126,101 @@ func execGet(db *redis.Database, args _type.Args) _interface.Reply {
 	if errReply != nil {
 		return errReply
 	}
+	if bytes == nil {
+		return Reply.MakeNullBulkReply()
+	}
 	return Reply.MakeBulkReply(bytes)
+}
+
+func execGetEX(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	bytes, errReply := db.GetString(key)
+	if errReply != nil {
+		return errReply
+	}
+	if bytes == nil {
+		return Reply.MakeNullBulkReply()
+	}
+	// 解析过期策略和过期时间
+	flag := false // 只能存在一个EX、PX、EXAT、PXAT、PERSIST
+	var expireTime time.Time
+	for i := 1; i < len(args); i++ {
+		arg := strings.ToUpper(string(args[i]))
+		switch arg {
+		case "EX":
+			if flag || i+1 >= len(args) {
+				return Reply.MakeSyntaxErrReply()
+			}
+			flag = true
+			ttl, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil || ttl <= 0 {
+				return Reply.MakeErrReply("invalid expire time")
+			}
+			expireTime = time.Now().Add(time.Duration(ttl) * time.Second) // 以秒为单位
+			i++
+		case "PX":
+			if flag || i+1 >= len(args) {
+				return Reply.MakeSyntaxErrReply()
+			}
+			flag = true
+			ttl, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil || ttl <= 0 {
+				return Reply.MakeErrReply("invalid expire time")
+			}
+			expireTime = time.Now().Add(time.Duration(ttl) * time.Millisecond) // 以毫秒为单位
+			i++
+		case "EXAT":
+			if flag || i+1 >= len(args) {
+				return Reply.MakeSyntaxErrReply()
+			}
+			flag = true
+			ttl, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil || ttl <= 0 {
+				return Reply.MakeErrReply("invalid expire time")
+			}
+			expireTime = time.Unix(ttl, 0) // 以秒为单位的unix时间
+			i++
+		case "PXAT":
+			if flag || i+1 >= len(args) {
+				return Reply.MakeSyntaxErrReply()
+			}
+			flag = true
+			ttl, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil || ttl <= 0 {
+				return Reply.MakeErrReply("invalid expire time")
+			}
+			expireTime = time.Unix(0, ttl*int64(time.Millisecond)) // 以毫秒为单位的unix时间
+			i++
+		case "PERSIST":
+			if flag {
+				return Reply.MakeSyntaxErrReply()
+			}
+			db.CancelExpire(key)                          // persist
+			db.ToAof(utils.ToCmdLine("Persist", args[0])) // aof
+		default:
+			return Reply.MakeSyntaxErrReply()
+		}
+	}
+	// expire
+	if flag {
+		db.SetExpire(key, expireTime)
+		db.ToAof(utils.ToExpireCmd(key, expireTime))
+	}
+	return Reply.MakeBulkReply(bytes)
+}
+
+func execGetSet(db *redis.Database, args _type.Args) _interface.Reply {
+	key, newVal := string(args[0]), args[1]
+	oldVal, errReply := db.GetString(key)
+	if errReply != nil {
+		return errReply
+	}
+	entity := _type.NewEntity(newVal)
+	db.Put(key, entity)
+	db.CancelExpire(key)                      // persist
+	db.ToAof(utils.ToCmdLine("Set", args...)) // aof
+	if oldVal == nil {
+		return Reply.MakeNullBulkReply() // 旧值不存在
+	}
+	return Reply.MakeBulkReply(oldVal) // 返回旧值
 }

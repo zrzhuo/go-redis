@@ -189,7 +189,7 @@ func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
 	if !exists {
 		return nil, nil
 	}
-	bytes, ok := entity.Data.([]byte)
+	bytes, ok := entity.Data.([]byte) // string的底层为[]byte，而非string
 	if !ok {
 		return nil, Reply.MakeWrongTypeErrReply()
 	}
@@ -208,24 +208,24 @@ func (db *Database) GetList(key string) (List.List[[]byte], _interface.ErrorRepl
 	return list, nil
 }
 
-func (db *Database) GetSet(key string) (*Set.Set[string], _interface.ErrorReply) {
+func (db *Database) GetSet(key string) (Set.Set[string], _interface.ErrorReply) {
 	entity, exists := db.GetEntity(key)
 	if !exists {
 		return nil, nil
 	}
-	set, ok := entity.Data.(*Set.Set[string])
+	set, ok := entity.Data.(Set.Set[string])
 	if !ok {
 		return nil, Reply.MakeWrongTypeErrReply()
 	}
 	return set, nil
 }
 
-func (db *Database) GetZSet(key string) (*ZSet.SortedSet[string], _interface.ErrorReply) {
+func (db *Database) GetZSet(key string) (ZSet.ZSet[string], _interface.ErrorReply) {
 	entity, exists := db.GetEntity(key)
 	if !exists {
 		return nil, nil
 	}
-	zset, ok := entity.Data.(*ZSet.SortedSet[string])
+	zset, ok := entity.Data.(ZSet.ZSet[string])
 	if !ok {
 		return nil, Reply.MakeWrongTypeErrReply()
 	}
@@ -254,7 +254,7 @@ func (db *Database) GetOrInitList(key string) (list List.List[[]byte], isNew boo
 	isNew = false
 	if list == nil {
 		// 初始化list
-		list = List.MakeQuickList[[]byte]()
+		list = List.MakeQuickList[[]byte]() // list由[]byte类型的QuickList实现
 		entity := _type.NewEntity(list)
 		db.Put(key, entity)
 		isNew = true
@@ -262,7 +262,7 @@ func (db *Database) GetOrInitList(key string) (list List.List[[]byte], isNew boo
 	return list, isNew, nil
 }
 
-func (db *Database) GetOrInitSet(key string) (set *Set.Set[string], isNew bool, errReply _interface.ErrorReply) {
+func (db *Database) GetOrInitSet(key string) (set Set.Set[string], isNew bool, errReply _interface.ErrorReply) {
 	set, errReply = db.GetSet(key)
 	if errReply != nil {
 		return nil, false, errReply // WrongTypeErrReply
@@ -270,7 +270,7 @@ func (db *Database) GetOrInitSet(key string) (set *Set.Set[string], isNew bool, 
 	isNew = false
 	if set == nil {
 		// 初始化set
-		set = Set.MakeSimpleSet[string]()
+		set = Set.MakeSimpleSet[string]() // set由string类型的SimpleSet实现
 		entity := _type.NewEntity(set)
 		db.Put(key, entity)
 		isNew = true
@@ -278,7 +278,7 @@ func (db *Database) GetOrInitSet(key string) (set *Set.Set[string], isNew bool, 
 	return set, isNew, nil
 }
 
-func (db *Database) GetOrInitZSet(key string) (zset *ZSet.SortedSet[string], isNew bool, errReply _interface.ErrorReply) {
+func (db *Database) GetOrInitZSet(key string) (zset ZSet.ZSet[string], isNew bool, errReply _interface.ErrorReply) {
 	zset, errReply = db.GetZSet(key)
 	if errReply != nil {
 		return nil, false, errReply // WrongTypeErrReply
@@ -295,7 +295,7 @@ func (db *Database) GetOrInitZSet(key string) (zset *ZSet.SortedSet[string], isN
 				return 0
 			}
 		}
-		zset = ZSet.MakeSortedSet[string](compare)
+		zset = ZSet.MakeSortedSet[string](compare) // zest由string类型的SortedSet实现
 		entity := _type.NewEntity(zset)
 		db.Put(key, entity)
 		isNew = true
@@ -311,7 +311,7 @@ func (db *Database) GetOrInitDict(key string) (set Dict.Dict[string, []byte], is
 	isNew = false
 	if set == nil {
 		// 初始化set
-		set = Dict.MakeSimpleDict[string, []byte]()
+		set = Dict.MakeSimpleDict[string, []byte]() // hash由[string, []byte]类型的SimpleDict实现
 		entity := _type.NewEntity(set)
 		db.Put(key, entity)
 		isNew = true

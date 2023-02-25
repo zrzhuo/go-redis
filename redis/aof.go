@@ -87,20 +87,17 @@ func (pst *Persister) ToAOF(dbIdx int, cmdLine _type.CmdLine) {
 	if pst.closed {
 		return
 	}
-	if pst.fsync == FsyncAlways {
-		// 直接写入
-		p := &aofMsg{
-			cmdLine: cmdLine,
-			dbIdx:   dbIdx,
-		}
-		pst.writeAof(p)
-		return
-	}
-	// 放入aofChan，等待aof协程执行写入
-	pst.msgCh <- &aofMsg{
+	msg := &aofMsg{
 		cmdLine: cmdLine,
 		dbIdx:   dbIdx,
 	}
+	if pst.fsync == FsyncAlways {
+		// 直接写入
+		pst.writeAof(msg)
+		return
+	}
+	// 放入aofChan，等待aof协程执行写入
+	pst.msgCh <- msg
 }
 
 func (pst *Persister) writeAof(p *aofMsg) {
