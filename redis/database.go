@@ -42,7 +42,7 @@ func MakeDatabase(idx int) *Database {
 	return database
 }
 
-func (db *Database) Execute(redisConn _interface.Connection, cmdLine _type.CmdLine) _interface.Reply {
+func (db *Database) Execute(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
 	return db.execCommand(cmdLine)
 }
 

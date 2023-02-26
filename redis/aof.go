@@ -142,7 +142,7 @@ func (pst *Persister) ReadAof() {
 	defer file.Close()
 
 	ch := resp.MakeParser(file).ParseFile()
-	aofConn := GetAofConn()
+	aofConn := GetAofClient()
 	for payload := range ch {
 		if payload.Err != nil {
 			if payload.Err == io.EOF {

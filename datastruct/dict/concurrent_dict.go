@@ -29,9 +29,9 @@ func (bucket *bucket[K, V]) randomKey() []K {
 }
 
 type ConcurrentDict[K comparable, V any] struct {
-	buckets []*bucket[K, V]
-	size    int32
-	length  int32
+	buckets   []*bucket[K, V]
+	bucketNum int32
+	length    int32
 }
 
 func checkNilDict(dict any) {
@@ -56,16 +56,16 @@ func computeCapacity(param int32) (size int32) {
 	return n + 1
 }
 
-func MakeConcurrentDict[K comparable, V any](size int32) *ConcurrentDict[K, V] {
-	size = computeCapacity(size)
-	buckets := make([]*bucket[K, V], size)
-	for i := int32(0); i < size; i++ {
+func MakeConcurrentDict[K comparable, V any](bucketNum int32) *ConcurrentDict[K, V] {
+	bucketNum = computeCapacity(bucketNum)
+	buckets := make([]*bucket[K, V], bucketNum)
+	for i := int32(0); i < bucketNum; i++ {
 		buckets[i] = &bucket[K, V]{m: make(map[K]V)}
 	}
 	return &ConcurrentDict[K, V]{
-		buckets: buckets,
-		size:    size,
-		length:  0,
+		buckets:   buckets,
+		bucketNum: bucketNum,
+		length:    0,
 	}
 }
 
@@ -249,5 +249,5 @@ func (dict *ConcurrentDict[K, V]) ForEach(consumer Consumer[K, V]) {
 
 func (dict *ConcurrentDict[K, V]) Clear() {
 	checkNilDict(dict)
-	*dict = *MakeConcurrentDict[K, V](dict.size)
+	*dict = *MakeConcurrentDict[K, V](dict.bucketNum)
 }

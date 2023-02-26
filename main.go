@@ -11,7 +11,9 @@ func main() {
 	print("go-redis running...\n")
 	redis.ParseConfig("redis.conf") // 从redis.conf中读取配置
 	address := fmt.Sprintf("%s:%d", redis.Config.Bind, redis.Config.Port)
-	err := tcp.MakeTcpServer(address, tcp.MakeRedisHandler()).Start()
+	handler := tcp.MakeRedisHandler()
+	server := tcp.MakeTcpServer(address, handler)
+	err := server.Start()
 	if err != nil {
 		logger.Error(err)
 		return

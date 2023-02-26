@@ -1,18 +1,17 @@
 package _interface
 
-// Reply is the interface of redis serialization resp message
+import _type "go-redis/interface/type"
+
 type Reply interface {
 	ToBytes() []byte
 }
 
-// ErrorReply is an error and redis.Reply
 type ErrorReply interface {
 	Error() string
 	ToBytes() []byte
 }
 
-// Connection represents a connection with redis client
-type Connection interface {
+type Client interface {
 	Write([]byte) (int, error)
 	Close() error
 	RemoteAddr() string
@@ -27,18 +26,10 @@ type Connection interface {
 	UnSubscribe(channel string)
 	SubsCount() int
 	GetChannels() []string
+}
 
-	InMultiState() bool
-	SetMultiState(bool)
-	GetQueuedCmdLine() [][][]byte
-	EnqueueCmd([][]byte)
-	ClearQueuedCmds()
-	GetWatching() map[string]uint32
-	AddTxError(err error)
-	GetTxErrors() []error
-
-	SetSlave()
-	IsSlave() bool
-	SetMaster()
-	IsMaster() bool
+type DB interface {
+	Exec(client Client, cmdLine _type.CmdLine) Reply
+	AfterClientClose(client Client)
+	Close()
 }

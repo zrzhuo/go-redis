@@ -15,9 +15,9 @@ import (
 )
 
 type RedisHandler struct {
-	redisEngine _interface.DB
-	connections sync.Map      // 并发安全的map，其key用于存放"活动中的连接"
-	closing     _sync.Boolean // 原子类型的bool，标志当前handler是否处于"closing"的状态
+	engine  _interface.DB
+	clients sync.Map
+	closing _sync.Boolean // 标志当前handler是否处于"closing"的状态
 }
 
 func MakeRedisHandler() *RedisHandler {
@@ -25,38 +25,37 @@ func MakeRedisHandler() *RedisHandler {
 	// 注册所有命令
 	commands.RegisterAllCommand()
 	return &RedisHandler{
-		redisEngine: db,
+		engine: db,
 	}
 }
 
-// Handle 接收并执行命令
 func (handler *RedisHandler) Handle(conn net.Conn) {
 	if handler.closing.Get() {
 		_ = conn.Close() // handler正处于closing状态，拒绝该连接
 		return
 	}
 
-	// 包装为RedisConn，并存入activeConn
-	redisConn := redis.NewRedisConn(conn)
-	handler.connections.Store(redisConn, struct{}{})
+	// 包装为client
+	client := redis.NewClient(conn)
+	handler.clients.Store(client, struct{}{}) // 记录到clients
 
 	// handle
-	parser := resp.MakeParser(redisConn.Conn)
+	parser := resp.MakeParser(conn)
 	ch := parser.ParseCLI()
 	for payload := range ch {
 		if payload.Err != nil {
 			// EOF错误，连接已断开
 			if payload.Err == io.EOF || payload.Err == io.ErrUnexpectedEOF || strings.Contains(payload.Err.Error(), "use of closed network connection") {
-				handler.closeRedisConn(redisConn)
-				logger.Info("connection closed: " + redisConn.RemoteAddr())
+				handler.closeClient(client)
+				logger.Info("connection closed: " + client.RemoteAddr())
 				return
 			}
 			// 其他错误
 			errReply := Reply.MakeErrReply(payload.Err.Error())
-			_, err := redisConn.Write(errReply.ToBytes())
+			_, err := client.Write(errReply.ToBytes())
 			if err != nil {
-				handler.closeRedisConn(redisConn)
-				logger.Info("connection closed: " + redisConn.RemoteAddr())
+				handler.closeClient(client)
+				logger.Info("connection closed: " + client.RemoteAddr())
 				return
 			}
 			continue
@@ -73,31 +72,30 @@ func (handler *RedisHandler) Handle(conn net.Conn) {
 		}
 		cmdLine := reply.Args
 		// 执行命令
-		result := handler.redisEngine.Exec(redisConn, cmdLine)
+		result := handler.engine.Exec(client, cmdLine)
 		if result != nil {
-			_, _ = redisConn.Write(result.ToBytes())
+			_, _ = client.Write(result.ToBytes())
 		} else {
-			_, _ = redisConn.Write(Reply.MakeUnknownErrReply().ToBytes())
+			_, _ = client.Write(Reply.MakeUnknownErrReply().ToBytes())
 		}
 	}
 }
 
-// Close stops handler
 func (handler *RedisHandler) Close() error {
 	logger.Info("handler shutting down...")
 	handler.closing.Set(true) // 设置为closing状态
-	handler.connections.Range(func(key any, val any) bool {
-		client := key.(*redis.Connection)
+	handler.clients.Range(func(key any, val any) bool {
+		client := key.(*redis.Client)
 		_ = client.Close() // 逐个关闭连接
 		return true
 	})
-	handler.redisEngine.Close() // 关闭数据库
+	handler.engine.Close() // 关闭数据库
 	return nil
 }
 
 // 关闭指定连接
-func (handler *RedisHandler) closeRedisConn(redisConn *redis.Connection) {
-	_ = redisConn.Close()
-	handler.redisEngine.AfterConnClose(redisConn)
-	handler.connections.Delete(redisConn)
+func (handler *RedisHandler) closeClient(client *redis.Client) {
+	_ = client.Close()
+	handler.engine.AfterClientClose(client)
+	handler.clients.Delete(client)
 }

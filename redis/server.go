@@ -17,6 +17,7 @@ const NumOfDatabases = 4
 type Server struct {
 	databases []*atomic.Value // 若干个redis数据库
 	//persister *Persister      // AOF持久化
+	pubsub *Pubsub // pub/sub
 }
 
 func MakeServer() *Server {
@@ -28,6 +29,7 @@ func MakeServer() *Server {
 		holder.Store(db)
 		server.databases[i] = holder
 	}
+	server.pubsub = MakePubsub()
 	// AOF持久化
 	if Config.AppendOnly {
 		filename, fsync := Config.AppendFilename, Config.AppendFsync
@@ -48,34 +50,67 @@ func MakeServer() *Server {
 	return server
 }
 
-func (server *Server) Exec(redisConn _interface.Connection, cmdLine _type.CmdLine) (rep _interface.Reply) {
+func (server *Server) Exec(client _interface.Client, cmdLine _type.CmdLine) (reply _interface.Reply) {
 	// 异常处理
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Error(fmt.Sprintf("error occurs: %v\n%s", err, string(debug.Stack())))
-			rep = &Reply.UnknownErrReply{}
+			reply = &Reply.UnknownErrReply{}
 		}
 	}()
 
 	cmd := strings.ToLower(string(cmdLine[0]))
 	args := _type.Args(cmdLine[1:])
+	// 无需auth的命令
 	if cmd == "ping" {
-		return server.execPing(redisConn, args) // ping
+		return server.execPing(client, args) // ping
 	}
+	if cmd == "auth" {
+		return server.execAuth(client, args) // auth
+	}
+	// auth
+	if !server.isAuth(client) {
+		return Reply.MakeErrReply("authentication required")
+	}
+	// 需要auth的命令
 	if cmd == "select" {
-		return server.execSelect(redisConn, cmdLine) // 选择数据库
-	} else {
-		// 一般命令
-		dbIdx := redisConn.GetSelectDB()
-		selectedDB, errReply := server.getDB(dbIdx)
-		if errReply != nil {
-			return errReply
-		}
-		return selectedDB.Execute(redisConn, cmdLine)
+		return server.execSelect(client, args) // 选择数据库
 	}
+	if cmd == "subscribe" {
+		return server.execSubscribe(client, args) // 订阅
+	}
+	if cmd == "publish" {
+		return server.execPublish(client, args) // 发布
+	}
+	// 其他一般命令
+	dbIdx := client.GetSelectDB()
+	selectedDB, errReply := server.getDB(dbIdx)
+	if errReply != nil {
+		return errReply
+	}
+	return selectedDB.Execute(client, cmdLine)
 }
 
-func (server *Server) execPing(redisConn _interface.Connection, args _type.Args) _interface.Reply {
+func (server *Server) execSubscribe(client _interface.Client, args _type.Args) _interface.Reply {
+	if len(args) < 1 {
+		return Reply.MakeArgNumErrReply("subscribe")
+	}
+	channels := make([]string, len(args))
+	for i, arg := range args {
+		channels[i] = string(arg)
+	}
+	return server.pubsub.Subscribe(client, channels)
+}
+
+func (server *Server) execPublish(client _interface.Client, args _type.Args) _interface.Reply {
+	if len(args) != 2 {
+		return Reply.MakeArgNumErrReply("publish")
+	}
+	channel, message := string(args[0]), args[1]
+	return server.pubsub.Publish(client, channel, message)
+}
+
+func (server *Server) execPing(client _interface.Client, args _type.Args) _interface.Reply {
 	size := len(args)
 	if size == 0 {
 		return Reply.MakePongReply()
@@ -86,8 +121,30 @@ func (server *Server) execPing(redisConn _interface.Connection, args _type.Args)
 	}
 }
 
-func (server *Server) execSelect(redisConn _interface.Connection, cmdLine _type.CmdLine) _interface.Reply {
-	dbIdx, err := strconv.Atoi(string(cmdLine[1]))
+func (server *Server) execAuth(client _interface.Client, args _type.Args) _interface.Reply {
+	if len(args) != 1 {
+		return Reply.MakeArgNumErrReply("auth")
+	}
+	if Config.RequirePass == "" {
+		return Reply.MakeErrReply("no password is set.")
+	}
+	password := string(args[0])
+	client.SetPassword(password)
+	if password != Config.RequirePass {
+		return Reply.MakeErrReply("invalid password.")
+	}
+	return Reply.MakeOkReply()
+}
+
+func (server *Server) isAuth(client _interface.Client) bool {
+	if Config.RequirePass == "" {
+		return true // 未设置密码
+	}
+	return client.GetPassword() == Config.RequirePass // 密码是否一致
+}
+
+func (server *Server) execSelect(client _interface.Client, args _type.Args) _interface.Reply {
+	dbIdx, err := strconv.Atoi(string(args[0]))
 	if err != nil {
 		return Reply.MakeErrReply("selected index is invalid")
 	}
@@ -95,11 +152,11 @@ func (server *Server) execSelect(redisConn _interface.Connection, cmdLine _type.
 		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
 		return Reply.MakeErrReply(msg)
 	}
-	redisConn.SetSelectDB(dbIdx) // 修改redisConn的dbIdx
+	client.SetSelectDB(dbIdx) // 修改client的dbIdx
 	return Reply.MakeOkReply()
 }
 
-func (server *Server) AfterConnClose(redisConn _interface.Connection) {
+func (server *Server) AfterClientClose(client _interface.Client) {
 	logger.Info("connection is closed, do something...")
 }
 

@@ -18,7 +18,7 @@ type ServerConfig struct {
 	AppendOnly     bool   `cfg:"appendonly"`     // 是否开启aof
 	AppendFilename string `cfg:"appendfilename"` // aof文件名
 	AppendFsync    string `cfg:"appendfsync"`    // aof文件写磁盘策略
-	//RequirePass    string `cfg:"requirepass"`    // 密码
+	RequirePass    string `cfg:"requirepass"`    // 密码
 
 	//RDBFilename       string   `cfg:"dbfilename"`
 	//MasterAuth        string   `cfg:"masterauth"`
