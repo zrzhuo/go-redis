@@ -120,7 +120,7 @@ func (parser *Parser) parseCmdLines() {
 			parser.ch <- &Payload{Err: err}
 			continue // 命令行解析错误
 		}
-		reply := Reply.MakeMultiBulkReply(cmdLine)
+		reply := Reply.MakeArrayReply(cmdLine)
 		parser.ch <- &Payload{Data: reply}
 	}
 }
@@ -201,7 +201,7 @@ func (parser *Parser) parseMultiBulk(header []byte) error {
 			bulks = append(bulks, body[:len(body)-2]) // 去掉末尾的CRLF
 		}
 	}
-	reply := Reply.MakeMultiBulkReply(bulks)
+	reply := Reply.MakeArrayReply(bulks)
 	parser.ch <- &Payload{Data: reply}
 	return nil
 }

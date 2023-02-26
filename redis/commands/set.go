@@ -53,5 +53,5 @@ func execSMembers(db *redis.Database, args _type.Args) _interface.Reply {
 	for i := 0; i < size; i++ {
 		result[i] = []byte(members[i])
 	}
-	return reply.MakeMultiBulkReply(result)
+	return reply.MakeArrayReply(result)
 }

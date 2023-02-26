@@ -27,22 +27,22 @@ func (r *BulkReply) ToBytes() []byte {
 	return []byte("$" + strconv.Itoa(len(r.Arg)) + CRLF + string(r.Arg) + CRLF)
 }
 
-/* ---- Multi Bulk Strings ---- */
+/* ---- Array (Multi Bulk Strings) ---- */
 
-type MultiBulkReply struct {
+type ArrayReply struct {
 	Args [][]byte
 }
 
-func MakeMultiBulkReply(args [][]byte) *MultiBulkReply {
-	return &MultiBulkReply{
+func MakeArrayReply(args [][]byte) *ArrayReply {
+	return &ArrayReply{
 		Args: args,
 	}
 }
 
-func (r *MultiBulkReply) ToBytes() []byte {
-	argLen := len(r.Args)
+func (r *ArrayReply) ToBytes() []byte {
+	length := len(r.Args)
 	var buf bytes.Buffer
-	buf.WriteString("*" + strconv.Itoa(argLen) + CRLF)
+	buf.WriteString("*" + strconv.Itoa(length) + CRLF)
 	for _, arg := range r.Args {
 		if arg == nil {
 			buf.WriteString("$-1" + CRLF)

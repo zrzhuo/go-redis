@@ -35,7 +35,7 @@ func init() {
 func execExists(db *redis.Database, args _type.Args) _interface.Reply {
 	var count int64 = 0
 	for _, key := range args {
-		_, existed := db.GetEntity(string(key))
+		_, existed := db.Get(string(key))
 		if existed {
 			count++
 		}
@@ -61,7 +61,7 @@ func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeErrReply("illegal integer for ttl")
 	}
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(0) // key不存在，返回0
 	}
@@ -78,7 +78,7 @@ func execPExpire(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeErrReply("illegal integer for ttl")
 	}
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(0) // key不存在，返回0
 	}
@@ -95,7 +95,7 @@ func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeErrReply("illegal integer for ttl")
 	}
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(0) // key不存在，返回0
 	}
@@ -111,7 +111,7 @@ func execPExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeErrReply("illegal integer for ttl")
 	}
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(0) // key不存在，返回0
 	}
@@ -123,11 +123,11 @@ func execPExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execTTL(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
 	}
-	expireTime, existed := db.Ttl.Get(key)
+	expireTime, existed := db.GetExpireTime(key)
 	if !existed {
 		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
 	}
@@ -137,11 +137,11 @@ func execTTL(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execPTTL(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
 	}
-	expireTime, existed := db.Ttl.Get(key)
+	expireTime, existed := db.GetExpireTime(key)
 	if !existed {
 		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
 	}
@@ -151,11 +151,11 @@ func execPTTL(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execExpireTime(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
 	}
-	expireTime, existed := db.Ttl.Get(key)
+	expireTime, existed := db.GetExpireTime(key)
 	if !existed {
 		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
 	}
@@ -163,11 +163,11 @@ func execExpireTime(db *redis.Database, args _type.Args) _interface.Reply {
 }
 func execPExpireTime(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
 	}
-	expireTime, existed := db.Ttl.Get(key)
+	expireTime, existed := db.GetExpireTime(key)
 	if !existed {
 		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
 	}
@@ -176,22 +176,22 @@ func execPExpireTime(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execPersist(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	_, existed := db.GetEntity(key)
+	_, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeIntReply(0) // key不存在(或已过期)，返回0
 	}
-	_, existed = db.Ttl.Get(key)
+	_, existed = db.GetExpireTime(key)
 	if !existed {
 		return Reply.MakeIntReply(0) // key存在但未设置过期时间，返回0
 	}
-	db.CancelExpire(key)
+	db.Persist(key)
 	db.ToAof(utils.ToCmdLine("Persist", args...))
 	return Reply.MakeIntReply(1) // 取消过期成功，返回1
 }
 
 func execType(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	entity, existed := db.GetEntity(key)
+	entity, existed := db.Get(key)
 	if !existed {
 		return Reply.MakeStatusReply("none")
 	}

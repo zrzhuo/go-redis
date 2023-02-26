@@ -105,7 +105,7 @@ func (pst *Persister) writeAof(p *aofMsg) {
 	if p.dbIdx != pst.dbIdx {
 		// 写入一个"Select db"命令
 		cmdLine := utils.ToCmdLine("SELECT", []byte(strconv.Itoa(p.dbIdx)))
-		data := Reply.MakeMultiBulkReply(cmdLine).ToBytes()
+		data := Reply.MakeArrayReply(cmdLine).ToBytes()
 		_, err := pst.file.Write(data) // 写入
 		if err != nil {
 			logger.Warn(err)
@@ -114,7 +114,7 @@ func (pst *Persister) writeAof(p *aofMsg) {
 		pst.dbIdx = p.dbIdx // 修改pst针对的db
 	}
 	// 写入当前命令
-	data := Reply.MakeMultiBulkReply(p.cmdLine).ToBytes()
+	data := Reply.MakeArrayReply(p.cmdLine).ToBytes()
 	_, err := pst.file.Write(data) // 写入
 	if err != nil {
 		logger.Warn(err)
@@ -155,7 +155,7 @@ func (pst *Persister) ReadAof() {
 			logger.Error("reply error: reply is nil")
 			continue
 		}
-		reply, ok := payload.Data.(*Reply.MultiBulkReply)
+		reply, ok := payload.Data.(*Reply.ArrayReply)
 		if !ok {
 			logger.Error("type error: require multi bulk reply")
 			continue

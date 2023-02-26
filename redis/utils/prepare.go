@@ -15,19 +15,26 @@ func WriteFirstKey(args _type.Args) ([]string, []string) {
 }
 
 func WriteAllKeys(args _type.Args) ([]string, []string) {
-	keys := make([]string, len(args))
+	wKeys := make([]string, len(args))
 	for i, key := range args {
-		keys[i] = string(key)
+		wKeys[i] = string(key)
 	}
-	return keys, nil
+	return wKeys, nil
+}
+func WriteEvenKeys(args _type.Args) ([]string, []string) {
+	wKeys := make([]string, len(args)/2)
+	for i := 0; i < len(wKeys); i++ {
+		wKeys[i] = string(args[2*i])
+	}
+	return wKeys, nil
 }
 
 func ReadAllKeys(args _type.Args) ([]string, []string) {
-	keys := make([]string, len(args))
+	rKeys := make([]string, len(args))
 	for i, key := range args {
-		keys[i] = string(key)
+		rKeys[i] = string(key)
 	}
-	return nil, keys
+	return nil, rKeys
 }
 
 func ReadTwoKeys(args _type.Args) ([]string, []string) {

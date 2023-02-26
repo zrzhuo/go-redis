@@ -19,7 +19,12 @@ func init() {
 	redis.RegisterCommand("Get", execGet, utils.ReadFirstKey, 2, redis.ReadOnly)
 	redis.RegisterCommand("GetEX", execGetEX, utils.WriteFirstKey, -2, redis.ReadWrite)
 	redis.RegisterCommand("GetSet", execGetSet, utils.WriteFirstKey, 3, redis.ReadWrite)
-
+	redis.RegisterCommand("GetDel", execGetDel, utils.WriteFirstKey, 2, redis.ReadWrite)
+	redis.RegisterCommand("StrLen", execStrLen, utils.ReadFirstKey, 2, redis.ReadOnly)
+	redis.RegisterCommand("Append", execAppend, utils.WriteFirstKey, 3, redis.ReadWrite)
+	redis.RegisterCommand("MSet", execMSet, utils.WriteEvenKeys, -3, redis.ReadWrite)
+	redis.RegisterCommand("MSetNX", execMSetNX, utils.WriteEvenKeys, -3, redis.ReadWrite)
+	redis.RegisterCommand("MGet", execMGet, utils.ReadAllKeys, -2, redis.ReadOnly)
 }
 
 func execSet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -85,7 +90,7 @@ func execSet(db *redis.Database, args _type.Args) _interface.Reply {
 			db.SetExpire(key, expireTime)
 			db.ToAof(utils.ToExpireCmd(key, expireTime))
 		} else {
-			db.CancelExpire(key)
+			db.Persist(key)
 		}
 		return Reply.MakeOkReply()
 	}
@@ -122,23 +127,23 @@ func execSetEX(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execGet(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	bytes, errReply := db.GetString(key)
+	val, errReply := db.GetString(key)
 	if errReply != nil {
 		return errReply
 	}
-	if bytes == nil {
+	if val == nil {
 		return Reply.MakeNullBulkReply()
 	}
-	return Reply.MakeBulkReply(bytes)
+	return Reply.MakeBulkReply(val)
 }
 
 func execGetEX(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	bytes, errReply := db.GetString(key)
+	val, errReply := db.GetString(key)
 	if errReply != nil {
 		return errReply
 	}
-	if bytes == nil {
+	if val == nil {
 		return Reply.MakeNullBulkReply()
 	}
 	// 解析过期策略和过期时间
@@ -195,7 +200,7 @@ func execGetEX(db *redis.Database, args _type.Args) _interface.Reply {
 			if flag {
 				return Reply.MakeSyntaxErrReply()
 			}
-			db.CancelExpire(key)                          // persist
+			db.Persist(key)                               // persist
 			db.ToAof(utils.ToCmdLine("Persist", args[0])) // aof
 		default:
 			return Reply.MakeSyntaxErrReply()
@@ -206,7 +211,7 @@ func execGetEX(db *redis.Database, args _type.Args) _interface.Reply {
 		db.SetExpire(key, expireTime)
 		db.ToAof(utils.ToExpireCmd(key, expireTime))
 	}
-	return Reply.MakeBulkReply(bytes)
+	return Reply.MakeBulkReply(val)
 }
 
 func execGetSet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -217,10 +222,102 @@ func execGetSet(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	entity := _type.NewEntity(newVal)
 	db.Put(key, entity)
-	db.CancelExpire(key)                      // persist
+	db.Persist(key)                           // persist
 	db.ToAof(utils.ToCmdLine("Set", args...)) // aof
 	if oldVal == nil {
 		return Reply.MakeNullBulkReply() // 旧值不存在
 	}
 	return Reply.MakeBulkReply(oldVal) // 返回旧值
+}
+
+func execGetDel(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	val, errReply := db.GetString(key)
+	if errReply != nil {
+		return errReply
+	}
+	if val == nil {
+		return Reply.MakeNullBulkReply()
+	}
+	db.Remove(key)
+	db.ToAof(utils.ToCmdLine("Del", args...))
+	return Reply.MakeBulkReply(val)
+}
+
+func execStrLen(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	val, errReply := db.GetString(key)
+	if errReply != nil {
+		return errReply
+	}
+	if val == nil {
+		return Reply.MakeIntReply(0)
+	}
+	return Reply.MakeIntReply(int64(len(val)))
+}
+
+func execAppend(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	val, errReply := db.GetString(key)
+	if errReply != nil {
+		return errReply
+	}
+	val = append(val, args[1]...)
+	entity := _type.NewEntity(val)
+	db.Put(key, entity)
+	db.ToAof(utils.ToCmdLine("append", args...))
+	return Reply.MakeIntReply(int64(len(val)))
+}
+
+func execMSet(db *redis.Database, args _type.Args) _interface.Reply {
+	if len(args)%2 != 0 {
+		return Reply.MakeSyntaxErrReply()
+	}
+	for i := 0; i < len(args)/2; i++ {
+		key, val := string(args[2*i]), args[2*i+1]
+		entity := _type.NewEntity(val)
+		db.Put(key, entity)
+	}
+	db.ToAof(utils.ToCmdLine("MSet", args...))
+	return Reply.MakeOkReply()
+}
+
+func execMSetNX(db *redis.Database, args _type.Args) _interface.Reply {
+	if len(args)%2 != 0 {
+		return Reply.MakeSyntaxErrReply()
+	}
+	// 判断是否所有key都不存在
+	for i := 0; i < len(args)/2; i++ {
+		key := string(args[2*i])
+		_, existed := db.Get(key)
+		if existed {
+			return Reply.MakeIntReply(0)
+		}
+	}
+	// put所有key
+	for i := 0; i < len(args)/2; i++ {
+		key, val := string(args[2*i]), args[2*i+1]
+		entity := _type.NewEntity(val)
+		db.Put(key, entity)
+	}
+	db.ToAof(utils.ToCmdLine("MSetNX", args...))
+	return Reply.MakeIntReply(1)
+}
+
+func execMGet(db *redis.Database, args _type.Args) _interface.Reply {
+	result := make([][]byte, len(args))
+	for i := 0; i < len(args); i++ {
+		key := string(args[i])
+		val, errReply := db.GetString(key)
+		if errReply != nil {
+			result[i] = nil
+			continue
+		}
+		if val == nil {
+			result[i] = nil
+			continue
+		}
+		result[i] = val
+	}
+	return Reply.MakeArrayReply(result)
 }

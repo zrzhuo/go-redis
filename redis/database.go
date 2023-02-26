@@ -4,13 +4,13 @@ import (
 	"fmt"
 	Dict "go-redis/datastruct/dict"
 	List "go-redis/datastruct/list"
-	Lock "go-redis/datastruct/lock"
 	Set "go-redis/datastruct/set"
 	ZSet "go-redis/datastruct/zset"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
 	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
+	_sync "go-redis/utils/sync"
 	"go-redis/utils/timewheel"
 	"strings"
 	"time"
@@ -25,9 +25,9 @@ const (
 type Database struct {
 	idx  int                              // 数据库编号
 	data Dict.Dict[string, *_type.Entity] // 数据
-	Ttl  Dict.Dict[string, time.Time]     // 超时时间
+	ttl  Dict.Dict[string, time.Time]     // 超时时间
 	//version Dict.Dict[string, uint32]        // 版本，用于事务
-	locker *Lock.Locks         // 锁，用于执行命令时为key加锁
+	locker *_sync.Locker       // 锁，用于执行命令时为key加锁
 	ToAof  func(_type.CmdLine) // 添加命令到aof
 }
 
@@ -35,9 +35,9 @@ func MakeDatabase(idx int) *Database {
 	database := &Database{
 		idx:  idx,
 		data: Dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
-		Ttl:  Dict.MakeConcurrentDict[string, time.Time](ttlSize),
+		ttl:  Dict.MakeConcurrentDict[string, time.Time](ttlSize),
 		//version: Dict.MakeConcurrentDict[string, uint32](dataSize),
-		locker: Lock.MakeLocks(lockerSize),
+		locker: _sync.MakeLocker(lockerSize),
 	}
 	return database
 }
@@ -54,22 +54,22 @@ func (db *Database) execCommand(cmdLine _type.CmdLine) _interface.Reply {
 		return Reply.MakeErrReply("unknown command '" + cmdName + "'")
 	}
 	// 参数个数是否满足要求
-	if !checkArity(cmd.Arity, cmdLine) {
+	if !checkArgNum(cmd.Arity, cmdLine) {
 		return Reply.MakeArgNumErrReply(cmdName)
 	}
 	args := _type.Args(cmdLine[1:])           // 获取参数
 	writeKeys, readKeys := cmd.keysFind(args) // 获取需要加锁的key
 	//db.addVersion(writeKeys...)
 	// 加锁
-	db.RWLocks(writeKeys, readKeys)
-	defer db.RWUnLocks(writeKeys, readKeys)
+	db.lockKeys(writeKeys, readKeys)
+	defer db.unLockKeys(writeKeys, readKeys)
 	// 执行
 	reply := cmd.Execute(db, args)
 	return reply
 }
 
 // 检查参数个数是否满足要求
-func checkArity(arity int, cmdLine _type.CmdLine) bool {
+func checkArgNum(arity int, cmdLine _type.CmdLine) bool {
 	argNum := len(cmdLine)
 	if arity >= 0 {
 		return argNum == arity
@@ -77,31 +77,29 @@ func checkArity(arity int, cmdLine _type.CmdLine) bool {
 	return argNum >= -arity
 }
 
-/* ----- Lock ----- */
+/* ----- Lock Keys----- */
 
-// RWLocks Lock keys for writing and reading
-func (db *Database) RWLocks(writeKeys []string, readKeys []string) {
-	db.locker.RWLocks(writeKeys, readKeys)
+func (db *Database) lockKeys(writeKeys []string, readKeys []string) {
+	db.locker.LockKeys(writeKeys, readKeys)
 }
 
-// RWUnLocks unlock keys for writing and reading
-func (db *Database) RWUnLocks(writeKeys []string, readKeys []string) {
-	db.locker.RWUnLocks(writeKeys, readKeys)
+func (db *Database) unLockKeys(writeKeys []string, readKeys []string) {
+	db.locker.UnLockKeys(writeKeys, readKeys)
 }
 
 /* ----- Time To Live ----- */
 
 func (db *Database) SetExpire(key string, expire time.Time) {
-	db.Ttl.Put(key, expire)
+	db.ttl.Put(key, expire)
 	taskKey := "expire:" + key
 	// 创建定时任务
 	timewheel.At(expire, taskKey, func() {
 		keys := []string{key}
 		// 上锁
-		db.RWLocks(keys, nil)
-		defer db.RWUnLocks(keys, nil)
+		db.lockKeys(keys, nil)
+		defer db.unLockKeys(keys, nil)
 		logger.Info(fmt.Sprintf("key '%s' expired", key))
-		expireTime, ok := db.Ttl.Get(key)
+		expireTime, ok := db.ttl.Get(key)
 		if !ok {
 			return
 		}
@@ -113,14 +111,22 @@ func (db *Database) SetExpire(key string, expire time.Time) {
 	})
 }
 
-func (db *Database) CancelExpire(key string) {
-	db.Ttl.Remove(key)
+func (db *Database) Persist(key string) {
+	db.ttl.Remove(key)
 	taskKey := "expire:" + key
 	timewheel.Cancel(taskKey)
 }
 
+func (db *Database) GetExpireTime(key string) (time.Time, bool) {
+	expire, ok := db.ttl.Get(key)
+	if !ok {
+		return expire, false // 未设置过期时间
+	}
+	return expire, true
+}
+
 func (db *Database) IsExpired(key string) bool {
-	expire, ok := db.Ttl.Get(key)
+	expire, ok := db.ttl.Get(key)
 	if !ok {
 		return false // 未设置过期时间
 	}
@@ -134,7 +140,7 @@ func (db *Database) IsExpired(key string) bool {
 
 /* ----- Entity Operation ----- */
 
-func (db *Database) GetEntity(key string) (*_type.Entity, bool) {
+func (db *Database) Get(key string) (*_type.Entity, bool) {
 	entity, ok := db.data.Get(key)
 	if !ok {
 		return nil, false // key不存在
@@ -159,7 +165,7 @@ func (db *Database) PutIfAbsent(key string, entity *_type.Entity) int {
 
 func (db *Database) Remove(key string) {
 	db.data.Remove(key)
-	db.Ttl.Remove(key)
+	db.ttl.Remove(key)
 	taskKey := "expire:" + key
 	timewheel.Cancel(taskKey)
 }
@@ -178,14 +184,14 @@ func (db *Database) Removes(keys ...string) (count int) {
 
 func (db *Database) Flush() {
 	db.data.Clear()
-	db.Ttl.Clear()
-	db.locker = Lock.MakeLocks(lockerSize) // 重置锁
+	db.ttl.Clear()
+	db.locker = _sync.MakeLocker(lockerSize) // 重置锁
 }
 
 /* ----- Get Entity ----- */
 
 func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
-	entity, exists := db.GetEntity(key)
+	entity, exists := db.Get(key)
 	if !exists {
 		return nil, nil
 	}
@@ -197,7 +203,7 @@ func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
 }
 
 func (db *Database) GetList(key string) (List.List[[]byte], _interface.ErrorReply) {
-	entity, exists := db.GetEntity(key)
+	entity, exists := db.Get(key)
 	if !exists {
 		return nil, nil
 	}
@@ -209,7 +215,7 @@ func (db *Database) GetList(key string) (List.List[[]byte], _interface.ErrorRepl
 }
 
 func (db *Database) GetSet(key string) (Set.Set[string], _interface.ErrorReply) {
-	entity, exists := db.GetEntity(key)
+	entity, exists := db.Get(key)
 	if !exists {
 		return nil, nil
 	}
@@ -221,7 +227,7 @@ func (db *Database) GetSet(key string) (Set.Set[string], _interface.ErrorReply) 
 }
 
 func (db *Database) GetZSet(key string) (ZSet.ZSet[string], _interface.ErrorReply) {
-	entity, exists := db.GetEntity(key)
+	entity, exists := db.Get(key)
 	if !exists {
 		return nil, nil
 	}
@@ -233,7 +239,7 @@ func (db *Database) GetZSet(key string) (ZSet.ZSet[string], _interface.ErrorRepl
 }
 
 func (db *Database) GetDict(key string) (Dict.Dict[string, []byte], _interface.ErrorReply) {
-	entity, exists := db.GetEntity(key)
+	entity, exists := db.Get(key)
 	if !exists {
 		return nil, nil
 	}

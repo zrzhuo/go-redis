@@ -17,9 +17,9 @@ type DBEngine interface {
 	DB
 	ExecWithLock(conn Connection, cmdLine _type.CmdLine) Reply
 	ExecMulti(conn Connection, watching map[string]uint32, cmdLines []_type.CmdLine) Reply
-	GetUndoLogs(dbIndex int, cmdLine _type.CmdLine) []_type.CmdLine
-	ForEach(dbIndex int, cb func(key string, data *_type.Entity, expiration *time.Time) bool)
-	RWLocks(dbIndex int, writeKeys []string, readKeys []string)
-	RWUnLocks(dbIndex int, writeKeys []string, readKeys []string)
-	GetDBSize(dbIndex int) (int, int)
+	GetUndoLogs(dbIdx int, cmdLine _type.CmdLine) []_type.CmdLine
+	ForEach(dbIdx int, cb func(key string, data *_type.Entity, expire *time.Time) bool)
+	RWLocks(dbIdx int, writeKeys []string, readKeys []string)
+	RWUnLocks(dbIdx int, writeKeys []string, readKeys []string)
+	GetDBSize(dbIdx int) (int, int)
 }

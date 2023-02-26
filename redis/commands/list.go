@@ -58,7 +58,7 @@ func execLPushX(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeIntReply(int64(0))
+		return Reply.MakeIntReply(0)
 	}
 	for _, val := range vals {
 		list.LPush(val) // 按顺序插入表头
@@ -73,7 +73,7 @@ func execRPushX(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeIntReply(int64(0))
+		return Reply.MakeIntReply(0)
 	}
 	for _, val := range vals {
 		list.RPush(val) // 按顺序插入表头
@@ -215,7 +215,7 @@ func execLRem(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeIntReply(int64(0))
+		return Reply.MakeIntReply(0)
 	}
 	equals := func(val []byte) bool {
 		return bytes.Equal(val, target)
@@ -279,5 +279,5 @@ func execLRange(db *redis.Database, args _type.Args) _interface.Reply {
 		stop = start
 	}
 	vals := list.Range(start, stop)
-	return Reply.MakeMultiBulkReply(vals)
+	return Reply.MakeArrayReply(vals)
 }

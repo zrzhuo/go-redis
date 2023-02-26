@@ -66,7 +66,7 @@ func (handler *RedisHandler) Handle(conn net.Conn) {
 			continue
 		}
 		// 构建commands
-		reply, ok := payload.Data.(*Reply.MultiBulkReply)
+		reply, ok := payload.Data.(*Reply.ArrayReply)
 		if !ok {
 			logger.Error("wrong commands line: require multi bulk strings")
 			continue
