@@ -35,7 +35,7 @@ func execSAdd(db *redis.Database, args _type.Args) _interface.Reply {
 		member := string(args[i+1])
 		count += set.Add(member)
 	}
-	db.ToAof(utils.ToCmd("SAdd", args...))
+	db.ToAOF(utils.ToCmd("SAdd", args...))
 	return reply.MakeIntReply(int64(count))
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
+	"go-redis/redis/utils"
 	Reply "go-redis/resp/reply"
 	"strconv"
 )
@@ -16,6 +17,29 @@ func (server *Server) execCommand(client _interface.Client, cmdLine _type.CmdLin
 	}
 	db := server.databases[dbIdx].Load().(*Database)
 	return db.Execute(client, cmdLine)
+}
+
+func (server *Server) execFlushDB(client _interface.Client, args _type.Args) _interface.Reply {
+	dbIdx := client.GetSelectDB()
+	if dbIdx < 0 || dbIdx >= len(server.databases) {
+		err := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
+		return Reply.MakeErrReply(err)
+	}
+	db := server.databases[dbIdx].Load().(*Database)
+	db.Flush()
+	db.ToAOF(utils.ToCmd("flushdb", []byte(strconv.Itoa(dbIdx))))
+	return Reply.MakeOkReply()
+}
+
+func (server *Server) execFlushAll(client _interface.Client, args _type.Args) _interface.Reply {
+	for i := 0; i < len(server.databases); i++ {
+		db := server.databases[i].Load().(*Database)
+		db.Flush()
+		if i == 0 {
+			db.ToAOF(utils.ToCmd("flushall"))
+		}
+	}
+	return Reply.MakeOkReply()
 }
 
 func (server *Server) execSubscribe(client _interface.Client, args _type.Args) _interface.Reply {
@@ -89,7 +113,7 @@ func (server *Server) execSelect(client _interface.Client, args _type.Args) _int
 	return Reply.MakeOkReply()
 }
 
-func (server *Server) execReWriteAof(client _interface.Client, args _type.Args) _interface.Reply {
+func (server *Server) execReWriteAOF(client _interface.Client, args _type.Args) _interface.Reply {
 	err := server.persister.ReWrite()
 	if err != nil {
 		return Reply.MakeErrReply(err.Error())
@@ -97,7 +121,7 @@ func (server *Server) execReWriteAof(client _interface.Client, args _type.Args) 
 	return Reply.MakeOkReply()
 }
 
-func (server *Server) execBGReWriteAof(client _interface.Client, args _type.Args) _interface.Reply {
+func (server *Server) execBGReWriteAOF(client _interface.Client, args _type.Args) _interface.Reply {
 	go func() {
 		_ = server.persister.ReWrite()
 	}()

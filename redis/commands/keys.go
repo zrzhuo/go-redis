@@ -50,7 +50,7 @@ func execDel(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	count := db.Removes(keys...)
 	if count > 0 {
-		db.ToAof(utils.ToCmd("Del", args...))
+		db.ToAOF(utils.ToCmd("Del", args...))
 	}
 	return Reply.MakeIntReply(int64(count))
 }
@@ -68,7 +68,7 @@ func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	ttl := time.Duration(ttlArg) * time.Second // 以秒为单位
 	expireTime := time.Now().Add(ttl)
 	db.SetExpire(key, expireTime)
-	db.ToAof(utils.ToExpireCmd(key, expireTime))
+	db.ToAOF(utils.ToExpireCmd(key, expireTime))
 	return Reply.MakeIntReply(1) // 设置成功，返回1
 }
 
@@ -85,7 +85,7 @@ func execPExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	ttl := time.Duration(ttlArg) * time.Millisecond // 以毫秒为单位
 	expireTime := time.Now().Add(ttl)
 	db.SetExpire(key, expireTime)
-	db.ToAof(utils.ToExpireCmd(key, expireTime))
+	db.ToAOF(utils.ToExpireCmd(key, expireTime))
 	return Reply.MakeIntReply(1) // 设置成功，返回1
 }
 
@@ -101,7 +101,7 @@ func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	expireTime := time.Unix(ttl, 0) // 以秒为单位的unix时间
 	db.SetExpire(key, expireTime)
-	db.ToAof(utils.ToExpireCmd(key, expireTime))
+	db.ToAOF(utils.ToExpireCmd(key, expireTime))
 	return Reply.MakeIntReply(1) // 设置成功，返回1
 }
 
@@ -117,7 +117,7 @@ func execPExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	expireTime := time.Unix(0, ttl*int64(time.Millisecond)) // 以毫秒为单位的unix时间
 	db.SetExpire(key, expireTime)
-	db.ToAof(utils.ToExpireCmd(key, expireTime))
+	db.ToAOF(utils.ToExpireCmd(key, expireTime))
 	return Reply.MakeIntReply(1) // 设置成功，返回1
 }
 
@@ -185,7 +185,7 @@ func execPersist(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeIntReply(0) // key存在但未设置过期时间，返回0
 	}
 	db.Persist(key)
-	db.ToAof(utils.ToCmd("Persist", args...))
+	db.ToAOF(utils.ToCmd("Persist", args...))
 	return Reply.MakeIntReply(1) // 取消过期成功，返回1
 }
 

@@ -28,7 +28,7 @@ type Database struct {
 	ttl  Dict.Dict[string, time.Time]     // 超时时间
 	//version Dict.Dict[string, uint32]        // 版本，用于事务
 	locker *_sync.Locker       // 锁，用于执行命令时为key加锁
-	ToAof  func(_type.CmdLine) // 添加命令到aof
+	ToAOF  func(_type.CmdLine) // 添加命令到aof
 }
 
 func MakeDatabase(idx int) *Database {
@@ -38,7 +38,7 @@ func MakeDatabase(idx int) *Database {
 		ttl:  Dict.MakeConcurrentDict[string, time.Time](ttlSize),
 		//version: Dict.MakeConcurrentDict[string, uint32](dataSize),
 		locker: _sync.MakeLocker(lockerSize),
-		ToAof:  func(line _type.CmdLine) {},
+		ToAOF:  func(line _type.CmdLine) {},
 	}
 	return database
 }
@@ -50,7 +50,7 @@ func MakeSimpleDatabase(idx int) *Database {
 		ttl:  Dict.MakeSimpleDict[string, time.Time](),
 		//version: Dict.MakeSimpleDict[string, uint32](),
 		locker: _sync.MakeLocker(1),
-		ToAof:  func(line _type.CmdLine) {},
+		ToAOF:  func(line _type.CmdLine) {},
 	}
 	return database
 }
@@ -195,9 +195,6 @@ func (db *Database) Removes(keys ...string) (count int) {
 	return count
 }
 
-//type Consumer[K comparable, V any] func(key K, val V) bool
-
-// ForEach traverses all the keys in the database
 func (db *Database) ForEach(operate func(key string, entity *_type.Entity, expire *time.Time) bool) {
 	consumer := func(key string, entity *_type.Entity) bool {
 		var expire *time.Time = nil

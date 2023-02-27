@@ -28,7 +28,7 @@ type Client interface {
 	GetChannels() []string
 }
 
-type DB interface {
+type Server interface {
 	Exec(client Client, cmdLine _type.CmdLine) Reply
 	CloseClient(client Client)
 	Close()

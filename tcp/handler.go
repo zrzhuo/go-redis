@@ -15,17 +15,17 @@ import (
 )
 
 type RedisHandler struct {
-	engine  _interface.DB
+	server  _interface.Server
 	clients sync.Map
 	closing _sync.Boolean // 标志当前handler是否处于"closing"的状态
 }
 
 func MakeRedisHandler() *RedisHandler {
-	db := redis.MakeServer()
+	server := redis.MakeServer()
 	// 注册所有命令
 	commands.RegisterAllCommand()
 	return &RedisHandler{
-		engine: db,
+		server: server,
 	}
 }
 
@@ -72,7 +72,7 @@ func (handler *RedisHandler) Handle(conn net.Conn) {
 		}
 		cmdLine := reply.Args
 		// 执行命令
-		result := handler.engine.Exec(client, cmdLine)
+		result := handler.server.Exec(client, cmdLine)
 		if result != nil {
 			_, _ = client.Write(result.ToBytes())
 		} else {
@@ -86,15 +86,18 @@ func (handler *RedisHandler) Close() error {
 	handler.closing.Set(true) // 设置为closing状态
 	handler.clients.Range(func(key any, val any) bool {
 		client := key.(*redis.Client)
-		_ = client.Close() // 逐个关闭连接
+		err := client.Close() // 逐个关闭连接
+		if err != nil {
+			logger.Warn("client close err: " + err.Error())
+		}
 		return true
 	})
-	handler.engine.Close() // 关闭数据库
+	handler.server.Close() // 关闭数据库
 	return nil
 }
 
 // 关闭指定连接
 func (handler *RedisHandler) closeClient(client *redis.Client) {
-	handler.engine.CloseClient(client)
+	handler.server.CloseClient(client)
 	handler.clients.Delete(client)
 }

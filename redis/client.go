@@ -53,7 +53,10 @@ func (client *Client) Write(b []byte) (int, error) {
 
 func (client *Client) Close() error {
 	client.wait.WaitWithTimeout(10 * time.Second) // 等待执行结束或超时
-	_ = client.conn.Close()
+	err := client.conn.Close()
+	if err != nil {
+		return err
+	}
 	client.selectedDB = 0
 	client.password = ""
 	clientPool.Put(client) // 放回连接池

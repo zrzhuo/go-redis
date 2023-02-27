@@ -43,7 +43,7 @@ type Persister struct {
 	msgCh   chan *aofMsg  // 主线程通知Persister进行aof
 	doneCh  chan struct{} // 通知主线程aof操作已完成
 	reading bool          // 是否正处于reading状态
-	pausing sync.Mutex    // 用于暂停aof
+	pausing sync.Mutex    // 用于rewrite和fsync时暂停aof
 
 }
 
@@ -63,18 +63,17 @@ func NewPersister(server *Server, filename string, fsync string) *Persister {
 	}
 	pst.file = aofFile
 
-	pst.reading = false
 	pst.msgCh = make(chan *aofMsg, aofChanSize)
 	pst.doneCh = make(chan struct{})
-
+	pst.reading = false
 	return pst
 }
 
-func (pst *Persister) listening() {
+func (pst *Persister) Listening() {
 	// listening
 	go func() {
 		for msg := range pst.msgCh {
-			pst.writeAof(msg)
+			pst.WriteAOF(msg)
 		}
 		pst.doneCh <- struct{}{}
 	}()
@@ -110,44 +109,42 @@ func (pst *Persister) ToAOF(dbIdx int, cmdLine _type.CmdLine) {
 	}
 	// always
 	if pst.fsync == FsyncAlways {
-		pst.writeAof(msg) // 直接写入
+		pst.WriteAOF(msg)
+		err := pst.file.Sync() // 直接写入
+		if err != nil {
+			logger.Warn(err)
+		}
 	} else {
 		pst.msgCh <- msg // 放入aofChan，等待listening协程执行写入
 	}
 }
 
-func (pst *Persister) writeAof(p *aofMsg) {
+func (pst *Persister) WriteAOF(msg *aofMsg) {
 	// 上锁，防止write期间进行aof重写
 	pst.pausing.Lock()
 	defer pst.pausing.Unlock()
 	// pst针对的db与目标db不符
-	if p.dbIdx != pst.dbIdx {
+	if msg.dbIdx != pst.dbIdx {
 		// 写入一个"Select db"命令
-		cmdLine := utils.ToCmd("SELECT", []byte(strconv.Itoa(p.dbIdx)))
+		cmdLine := utils.ToCmd("SELECT", []byte(strconv.Itoa(msg.dbIdx)))
 		data := Reply.MakeArrayReply(cmdLine).ToBytes()
 		_, err := pst.file.Write(data) // 写入
 		if err != nil {
 			logger.Warn(err)
 			return // 此时应该跳过这条命令
 		}
-		pst.dbIdx = p.dbIdx // 修改pst针对的db
+		pst.dbIdx = msg.dbIdx // 修改pst针对的db
 	}
 	// 写入当前命令
-	data := Reply.MakeArrayReply(p.cmdLine).ToBytes()
+	data := Reply.MakeArrayReply(msg.cmdLine).ToBytes()
 	_, err := pst.file.Write(data) // 写入
 	if err != nil {
 		logger.Warn(err)
 	}
-	// always
-	if pst.fsync == FsyncAlways {
-		err = pst.file.Sync()
-		if err != nil {
-			logger.Warn(err)
-		}
-	}
 }
 
-func (pst *Persister) ReadAof() {
+// ReadAOF 加载AOF文件以恢复数据，size为读取的字节数，size<0表示读取整个文件
+func (pst *Persister) ReadAOF(size int64) {
 	// 开启reading状态，防止read过程中的命令重新写入aof文件
 	pst.reading = true
 	defer func() {
@@ -164,55 +161,12 @@ func (pst *Persister) ReadAof() {
 	}
 	defer aofFile.Close()
 	// 解析文件
-	ch := resp.MakeParser(aofFile).ParseFile()
-	aofConn := GetAofClient()
-	for payload := range ch {
-		if payload.Err != nil {
-			if payload.Err == io.EOF {
-				break // 已结束
-			}
-			logger.Error("parse error: " + payload.Err.Error())
-			continue
-		}
-		if payload.Data == nil {
-			logger.Error("reply error: reply is nil")
-			continue
-		}
-		reply, ok := payload.Data.(*Reply.ArrayReply)
-		if !ok {
-			logger.Error("type error: require multi bulk reply")
-			continue
-		}
-		// 若为"select"命令，更新dbIdx
-		if strings.ToLower(string(reply.Args[0])) == "select" {
-			dbIndex, err := strconv.Atoi(string(reply.Args[1]))
-			if err == nil {
-				pst.dbIdx = dbIndex
-			}
-		}
-		// 执行命令
-		res := pst.server.Exec(aofConn, reply.Args)
-		if Reply.IsErrorReply(reply) {
-			logger.Error("execute error: ", string(res.ToBytes()))
-		}
+	var reader io.Reader
+	if size >= 0 {
+		reader = io.LimitReader(aofFile, size) // 加载指定字节数
+	} else {
+		reader = aofFile // 加载整个文件
 	}
-}
-
-func (pst *Persister) ReadAofWithSize(size int64) {
-	// 开启reading状态，防止read过程中的命令重新写入aof文件
-	pst.reading = true
-	defer func() {
-		pst.reading = false
-	}()
-	// 打开文件
-	aofFile, err := os.Open(pst.filename)
-	if err != nil {
-		logger.Warn(err)
-		return
-	}
-	defer aofFile.Close()
-	// 解析文件，只读取size字节
-	reader := io.LimitReader(aofFile, size)
 	ch := resp.MakeParser(reader).ParseFile()
 	aofConn := GetAofClient()
 	for payload := range ch {
@@ -227,40 +181,29 @@ func (pst *Persister) ReadAofWithSize(size int64) {
 			logger.Error("reply error: reply is nil")
 			continue
 		}
-		reply, ok := payload.Data.(*Reply.ArrayReply)
+		cmd, ok := payload.Data.(*Reply.ArrayReply)
 		if !ok {
-			logger.Error("type error: require multi bulk reply")
+			logger.Error("reply error: require multi bulk reply")
 			continue
 		}
 		// 若为"select"命令，更新dbIdx
-		if strings.ToLower(string(reply.Args[0])) == "select" {
-			dbIndex, err := strconv.Atoi(string(reply.Args[1]))
+		if strings.ToLower(string(cmd.Args[0])) == "select" {
+			dbIdx, err := strconv.Atoi(string(cmd.Args[1]))
 			if err == nil {
-				pst.dbIdx = dbIndex
+				pst.dbIdx = dbIdx
 			}
 		}
 		// 执行命令
-		res := pst.server.Exec(aofConn, reply.Args)
+		reply := pst.server.Exec(aofConn, cmd.Args)
 		if Reply.IsErrorReply(reply) {
-			logger.Error("execute error: ", string(res.ToBytes()))
+			logger.Error("execute error: ", string(reply.ToBytes()))
 		}
 	}
-}
-
-func (pst *Persister) Close() {
-	if pst.file != nil {
-		close(pst.msgCh)
-		<-pst.doneCh
-		err := pst.file.Close()
-		if err != nil {
-			logger.Warn(err)
-		}
-	}
-	pst.cancel()
 }
 
 func (pst *Persister) ReWrite() error {
-	tempFile, fileSize, dbIdx, err := pst.preReWrite()
+	// 准备工作
+	newFile, oldSize, oldIdx, err := pst.preReWrite()
 	if err != nil {
 		return err
 	}
@@ -270,13 +213,13 @@ func (pst *Persister) ReWrite() error {
 	tempPersister.filename = pst.filename
 	tempPersister.server = tempServer
 	tempServer.persister = tempPersister
-	// 临时server加载原aof文件，只读取fileSize字节
-	tempServer.persister.ReadAofWithSize(fileSize)
+	// 临时server加载原aof文件，只读取oldSize字节
+	tempServer.persister.ReadAOF(oldSize)
 	// 将临时server的数据写入新aof文件
 	for i := 0; i < len(tempServer.databases); i++ {
 		// select
 		reply := Reply.ToArrayReply("SELECT", strconv.Itoa(i))
-		_, err = tempFile.Write(reply.ToBytes())
+		_, err = newFile.Write(reply.ToBytes())
 		if err != nil {
 			return err
 		}
@@ -287,19 +230,17 @@ func (pst *Persister) ReWrite() error {
 				return true
 			}
 			cmdLine := utils.EntityToCmd(key, entity)
-			_, _ = tempFile.Write(cmdLine.ToBytes())
+			_, _ = newFile.Write(cmdLine.ToBytes())
 			if expire != nil {
 				expireCmd := utils.ExpireToCmd(key, expire)
-				_, _ = tempFile.Write(expireCmd.ToBytes())
+				_, _ = newFile.Write(expireCmd.ToBytes())
 			}
 			return true
 		}
 		db.ForEach(operate)
 	}
-	pst.postReWrite(tempFile, fileSize, dbIdx)
-	// 关闭资源
-	tempServer.Close()
-	tempPersister.Close()
+	// 结束工作
+	pst.postReWrite(newFile, oldSize, oldIdx)
 	return nil
 }
 
@@ -321,15 +262,15 @@ func (pst *Persister) preReWrite() (*os.File, int64, int, error) {
 	}
 	oldSize := fileInfo.Size()
 	//创建新aof文件
-	tempFile, err := ioutil.TempFile("", "*.aof")
+	newFile, err := ioutil.TempFile("", "*.aof")
 	if err != nil {
 		logger.Warn("temp file create failed")
 		return nil, 0, 0, err
 	}
-	return tempFile, oldSize, pst.dbIdx, nil
+	return newFile, oldSize, pst.dbIdx, nil
 }
 
-func (pst *Persister) postReWrite(newFile *os.File, oldSize int64, dbIdx int) {
+func (pst *Persister) postReWrite(newFile *os.File, oldSize int64, oldIdx int) {
 	// 上锁
 	pst.pausing.Lock()
 	defer pst.pausing.Unlock()
@@ -342,40 +283,59 @@ func (pst *Persister) postReWrite(newFile *os.File, oldSize int64, dbIdx int) {
 	defer func() {
 		_ = oldFile.Close()
 	}()
-	// Seek
+	// Seek到文件的指定位置
 	_, err = oldFile.Seek(oldSize, 0)
 	if err != nil {
 		logger.Error("seek AOF file failed: " + err.Error())
 		return
 	}
-
-	//sync tmpFile's db index with online file
-	data := protocol.MakeMultiBulkReply(utils.ToCmdLine("SELECT", strconv.Itoa(ctx.dbIdx))).ToBytes()
-	_, err = tmpFile.Write(data)
+	// select之前的db
+	reply := Reply.ToArrayReply("select", strconv.Itoa(oldIdx))
+	_, err = newFile.Write(reply.ToBytes())
 	if err != nil {
-		logger.Error("tmp file rewrite failed: " + err.Error())
+		logger.Error("rewrite AOF file failed: " + err.Error())
 		return
 	}
-
-	// Copy
+	// Copy新命令
 	_, err = io.Copy(newFile, oldFile)
 	if err != nil {
 		logger.Error("copy AOF file failed: " + err.Error())
 		return
 	}
-	// 用新aof文件进行替换
-	_ = pst.file.Close() // 关闭原来的file
-	_ = os.Rename(newFile.Name(), pst.filename)
+	// select现在的db
+	reply = Reply.ToArrayReply("select", strconv.Itoa(pst.dbIdx))
+	_, err = newFile.Write(reply.ToBytes())
+	if err != nil {
+		logger.Error("rewrite AOF file failed: " + err.Error())
+		return
+	}
+	// 替换新aof文件
+	err = pst.file.Close() // 关闭原来的file
+	if err != nil {
+		logger.Error("rewrite AOF file failed: " + err.Error())
+		panic(err)
+	}
+	err = os.Rename(newFile.Name(), pst.filename)
+	if err != nil {
+		logger.Error("rewrite AOF file failed: " + err.Error())
+		panic(err)
+	}
 	file, err := os.OpenFile(pst.filename, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600) // 重新打开
 	if err != nil {
+		logger.Error("rewrite AOF file failed: " + err.Error())
 		panic(err)
 	}
 	pst.file = file
+}
 
-	//write select command again to ensure aof file has the same db index with  persister.currentDB
-	data = protocol.MakeMultiBulkReply(utils.ToCmdLine("SELECT", strconv.Itoa(persister.currentDB))).ToBytes()
-	_, err = persister.aofFile.Write(data)
-	if err != nil {
-		panic(err)
+func (pst *Persister) Close() {
+	if pst.file != nil {
+		close(pst.msgCh)
+		<-pst.doneCh
+		err := pst.file.Close()
+		if err != nil {
+			logger.Warn(err)
+		}
 	}
+	pst.cancel()
 }

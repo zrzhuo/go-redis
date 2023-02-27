@@ -41,18 +41,18 @@ func MakeServer() *Server {
 		// 为每个database开启aof
 		for i := range server.databases {
 			db := server.databases[i].Load().(*Database)
-			db.ToAof = func(cmdLine _type.CmdLine) {
+			db.ToAOF = func(cmdLine _type.CmdLine) {
 				persister.ToAOF(db.idx, cmdLine)
 			}
 		}
-		persister.ReadAof()   // 加载aof文件
-		persister.listening() // 开启aof监听
+		persister.ReadAOF(-1) // 加载整个AOF文件
+		persister.Listening() // 开启AOF监听
 		server.persister = persister
 	}
 	return server
 }
 
-// MakeTempServer 创建一个临时server，用于aof重写
+// MakeTempServer 创建一个临时server，用于AOF重写
 func MakeTempServer() *Server {
 	server := &Server{}
 	// 创建指定个数的db，默认为16
@@ -96,6 +96,10 @@ func (server *Server) Exec(client _interface.Client, cmdLine _type.CmdLine) (rep
 	switch cmd {
 	case "select":
 		return server.execSelect(client, args) // 选择数据库
+	case "flushdb":
+		return server.execFlushDB(client, args) // 清空数据库
+	case "flushall":
+		return server.execFlushAll(client, args) // 清空所有数据库
 	case "subscribe":
 		return server.execSubscribe(client, args) // 订阅
 	case "unsubscribe":
@@ -103,29 +107,30 @@ func (server *Server) Exec(client _interface.Client, cmdLine _type.CmdLine) (rep
 	case "publish":
 		return server.execPublish(client, args) // 发布
 	case "rewriteaof":
-		return server.execReWriteAof(client, args) // aof重写
+		return server.execReWriteAOF(client, args) // aof重写
 	case "bgrewriteaof":
-		return server.execBGReWriteAof(client, args) // 异步aof重写
+		return server.execBGReWriteAOF(client, args) // 异步aof重写
 	default:
 		return server.execCommand(client, cmdLine) // db命令
 	}
 }
 
 func (server *Server) CloseClient(client _interface.Client) {
-	_ = client.Close()
+	err := client.Close()
+	if err != nil {
+		logger.Warn("client close err: " + err.Error())
+	}
 	// 取消订阅
 	channels := client.GetChannels()
 	server.pubsub.UnSubscribe(client, channels)
-	logger.Info(fmt.Sprintf("client [%s] is reading", client.RemoteAddr()))
+	logger.Info(fmt.Sprintf("client [%s] closed successfully.", client.RemoteAddr()))
 }
 
 func (server *Server) Close() {
-	logger.Info("redis server is closing...")
 	if server.persister != nil {
-		logger.Info("closing persister...")
 		server.persister.Close()
 	}
-	logger.Info("redis server is reading successfully")
+	logger.Info("redis server closed successfully.")
 }
 
 func (server *Server) isAuth(client _interface.Client) bool {

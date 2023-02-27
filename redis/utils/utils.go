@@ -54,7 +54,6 @@ func ToExpireCmd(key string, expireAt time.Time) _type.CmdLine {
 	return ToCmd("PExpireAT", []byte(key), []byte(ttl))
 }
 
-// EntityToCmd serialize data entity to redis command
 func EntityToCmd(key string, entity *_type.Entity) *Reply.ArrayReply {
 	switch data := entity.Data.(type) {
 	case []byte:
@@ -70,6 +69,11 @@ func EntityToCmd(key string, entity *_type.Entity) *Reply.ArrayReply {
 	default:
 		return nil
 	}
+}
+
+func ExpireToCmd(key string, expireTime *time.Time) *Reply.ArrayReply {
+	expire := strconv.FormatInt(expireTime.UnixNano()/1e6, 10)
+	return Reply.ToArrayReply("PExpireAT", key, expire)
 }
 
 func stringToCmd(key string, bytes []byte) *Reply.ArrayReply {
@@ -127,9 +131,4 @@ func hashToCmd(key string, hash Dict.Dict[string, []byte]) *Reply.ArrayReply {
 	}
 	hash.ForEach(consumer)
 	return Reply.MakeArrayReply(args)
-}
-
-func ExpireToCmd(key string, expireTime *time.Time) *Reply.ArrayReply {
-	expire := strconv.FormatInt(expireTime.UnixNano()/1e6, 10)
-	return Reply.ToArrayReply("PExpireAT", key, expire)
 }
