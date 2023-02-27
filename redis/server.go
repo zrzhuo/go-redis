@@ -7,36 +7,37 @@ import (
 	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync/atomic"
 )
 
-const NumOfDatabases = 4
-
 type Server struct {
 	databases []*atomic.Value // 若干个redis数据库
-	//persister *Persister      // AOF持久化
-	pubsub *Pubsub // pub/sub
+	persister *Persister      // AOF持久化
+	pubsub    *Pubsub         // pub/sub
 }
 
+// MakeServer 读取配置，创建server
 func MakeServer() *Server {
 	server := &Server{}
-	server.databases = make([]*atomic.Value, NumOfDatabases) // 四个数据库
+	// 创建指定个数的db，默认为16
+	dbNum := 16
+	if Config.Databases > 0 {
+		dbNum = Config.Databases
+	}
+	server.databases = make([]*atomic.Value, dbNum)
 	for i := range server.databases {
 		db := MakeDatabase(i)
 		holder := &atomic.Value{}
 		holder.Store(db)
 		server.databases[i] = holder
 	}
+	// pub/sub
 	server.pubsub = MakePubsub()
 	// AOF持久化
 	if Config.AppendOnly {
 		filename, fsync := Config.AppendFilename, Config.AppendFsync
-		persister, err := NewPersister(server, filename, fsync)
-		if err != nil {
-			panic(err)
-		}
+		persister := NewPersister(server, filename, fsync)
 		// 为每个database开启aof
 		for i := range server.databases {
 			db := server.databases[i].Load().(*Database)
@@ -46,6 +47,25 @@ func MakeServer() *Server {
 		}
 		persister.ReadAof()   // 加载aof文件
 		persister.listening() // 开启aof监听
+		server.persister = persister
+	}
+	return server
+}
+
+// MakeTempServer 创建一个临时server，用于aof重写
+func MakeTempServer() *Server {
+	server := &Server{}
+	// 创建指定个数的db，默认为16
+	dbNum := 16
+	if Config.Databases > 0 {
+		dbNum = Config.Databases
+	}
+	server.databases = make([]*atomic.Value, dbNum)
+	for i := range server.databases {
+		db := MakeSimpleDatabase(i)
+		holder := &atomic.Value{}
+		holder.Store(db)
+		server.databases[i] = holder
 	}
 	return server
 }
@@ -58,7 +78,7 @@ func (server *Server) Exec(client _interface.Client, cmdLine _type.CmdLine) (rep
 			reply = &Reply.UnknownErrReply{}
 		}
 	}()
-
+	// 解析命令行
 	cmd := strings.ToLower(string(cmdLine[0]))
 	args := _type.Args(cmdLine[1:])
 	// 无需auth的命令
@@ -68,72 +88,44 @@ func (server *Server) Exec(client _interface.Client, cmdLine _type.CmdLine) (rep
 	if cmd == "auth" {
 		return server.execAuth(client, args) // auth
 	}
-	// auth
+	// 判断auth
 	if !server.isAuth(client) {
 		return Reply.MakeErrReply("authentication required")
 	}
 	// 需要auth的命令
-	if cmd == "select" {
+	switch cmd {
+	case "select":
 		return server.execSelect(client, args) // 选择数据库
-	}
-	if cmd == "subscribe" {
+	case "subscribe":
 		return server.execSubscribe(client, args) // 订阅
-	}
-	if cmd == "publish" {
+	case "unsubscribe":
+		return server.execUnSubscribe(client, args) // 订阅
+	case "publish":
 		return server.execPublish(client, args) // 发布
-	}
-	// 其他一般命令
-	dbIdx := client.GetSelectDB()
-	selectedDB, errReply := server.getDB(dbIdx)
-	if errReply != nil {
-		return errReply
-	}
-	return selectedDB.Execute(client, cmdLine)
-}
-
-func (server *Server) execSubscribe(client _interface.Client, args _type.Args) _interface.Reply {
-	if len(args) < 1 {
-		return Reply.MakeArgNumErrReply("subscribe")
-	}
-	channels := make([]string, len(args))
-	for i, arg := range args {
-		channels[i] = string(arg)
-	}
-	return server.pubsub.Subscribe(client, channels)
-}
-
-func (server *Server) execPublish(client _interface.Client, args _type.Args) _interface.Reply {
-	if len(args) != 2 {
-		return Reply.MakeArgNumErrReply("publish")
-	}
-	channel, message := string(args[0]), args[1]
-	return server.pubsub.Publish(client, channel, message)
-}
-
-func (server *Server) execPing(client _interface.Client, args _type.Args) _interface.Reply {
-	size := len(args)
-	if size == 0 {
-		return Reply.MakePongReply()
-	} else if size == 1 {
-		return Reply.MakeStatusReply(string(args[0]))
-	} else {
-		return Reply.MakeArgNumErrReply("Ping")
+	case "rewriteaof":
+		return server.execReWriteAof(client, args) // aof重写
+	case "bgrewriteaof":
+		return server.execBGReWriteAof(client, args) // 异步aof重写
+	default:
+		return server.execCommand(client, cmdLine) // db命令
 	}
 }
 
-func (server *Server) execAuth(client _interface.Client, args _type.Args) _interface.Reply {
-	if len(args) != 1 {
-		return Reply.MakeArgNumErrReply("auth")
+func (server *Server) CloseClient(client _interface.Client) {
+	_ = client.Close()
+	// 取消订阅
+	channels := client.GetChannels()
+	server.pubsub.UnSubscribe(client, channels)
+	logger.Info(fmt.Sprintf("client [%s] is reading", client.RemoteAddr()))
+}
+
+func (server *Server) Close() {
+	logger.Info("redis server is closing...")
+	if server.persister != nil {
+		logger.Info("closing persister...")
+		server.persister.Close()
 	}
-	if Config.RequirePass == "" {
-		return Reply.MakeErrReply("no password is set.")
-	}
-	password := string(args[0])
-	client.SetPassword(password)
-	if password != Config.RequirePass {
-		return Reply.MakeErrReply("invalid password.")
-	}
-	return Reply.MakeOkReply()
+	logger.Info("redis server is reading successfully")
 }
 
 func (server *Server) isAuth(client _interface.Client) bool {
@@ -141,33 +133,4 @@ func (server *Server) isAuth(client _interface.Client) bool {
 		return true // 未设置密码
 	}
 	return client.GetPassword() == Config.RequirePass // 密码是否一致
-}
-
-func (server *Server) execSelect(client _interface.Client, args _type.Args) _interface.Reply {
-	dbIdx, err := strconv.Atoi(string(args[0]))
-	if err != nil {
-		return Reply.MakeErrReply("selected index is invalid")
-	}
-	if dbIdx >= len(server.databases) || dbIdx < 0 {
-		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return Reply.MakeErrReply(msg)
-	}
-	client.SetSelectDB(dbIdx) // 修改client的dbIdx
-	return Reply.MakeOkReply()
-}
-
-func (server *Server) AfterClientClose(client _interface.Client) {
-	logger.Info("connection is closed, do something...")
-}
-
-func (server *Server) Close() {
-	logger.Info("redis server is closing...")
-}
-
-func (server *Server) getDB(dbIdx int) (*Database, _interface.ErrorReply) {
-	if dbIdx < 0 || dbIdx >= len(server.databases) {
-		err := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return nil, Reply.MakeErrReply(err)
-	}
-	return server.databases[dbIdx].Load().(*Database), nil
 }

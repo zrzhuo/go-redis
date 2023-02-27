@@ -34,7 +34,7 @@ func execLPush(db *redis.Database, args _type.Args) _interface.Reply {
 	for _, val := range vals {
 		list.LPush(val) // 按顺序插入表头
 	}
-	db.ToAof(utils.ToCmdLine("LPush", args...))
+	db.ToAof(utils.ToCmd("LPush", args...))
 	return Reply.MakeIntReply(int64(list.Len()))
 }
 
@@ -47,7 +47,7 @@ func execRPush(db *redis.Database, args _type.Args) _interface.Reply {
 	for _, val := range vals {
 		list.RPush(val) // 按顺序插入表尾
 	}
-	db.ToAof(utils.ToCmdLine("RPush", args...))
+	db.ToAof(utils.ToCmd("RPush", args...))
 	return Reply.MakeIntReply(int64(list.Len()))
 }
 
@@ -63,7 +63,7 @@ func execLPushX(db *redis.Database, args _type.Args) _interface.Reply {
 	for _, val := range vals {
 		list.LPush(val) // 按顺序插入表头
 	}
-	db.ToAof(utils.ToCmdLine("LPushX", args...))
+	db.ToAof(utils.ToCmd("LPushX", args...))
 	return Reply.MakeIntReply(int64(list.Len()))
 }
 func execRPushX(db *redis.Database, args _type.Args) _interface.Reply {
@@ -78,7 +78,7 @@ func execRPushX(db *redis.Database, args _type.Args) _interface.Reply {
 	for _, val := range vals {
 		list.RPush(val) // 按顺序插入表头
 	}
-	db.ToAof(utils.ToCmdLine("RPushX", args...))
+	db.ToAof(utils.ToCmd("RPushX", args...))
 	return Reply.MakeIntReply(int64(list.Len()))
 }
 
@@ -95,7 +95,7 @@ func execLPop(db *redis.Database, args _type.Args) _interface.Reply {
 	if list.Len() == 0 {
 		db.Remove(key) // list已为空，移除该key
 	}
-	db.ToAof(utils.ToCmdLine("LPop", args...))
+	db.ToAof(utils.ToCmd("LPop", args...))
 	return Reply.MakeBulkReply(val)
 }
 
@@ -112,7 +112,7 @@ func execRPop(db *redis.Database, args _type.Args) _interface.Reply {
 	if list.Len() == 0 {
 		db.Remove(key) // list已为空，移除该key
 	}
-	db.ToAof(utils.ToCmdLine("RPop", args...))
+	db.ToAof(utils.ToCmd("RPop", args...))
 	return Reply.MakeBulkReply(val)
 }
 
@@ -134,7 +134,7 @@ func execRPopLPush(db *redis.Database, args _type.Args) _interface.Reply {
 	if srcList.Len() == 0 {
 		db.Remove(srcKey) // list已为空，移除该key
 	}
-	db.ToAof(utils.ToCmdLine("RPopLPush", args...))
+	db.ToAof(utils.ToCmd("RPopLPush", args...))
 	return Reply.MakeBulkReply(val)
 }
 
@@ -232,7 +232,7 @@ func execLRem(db *redis.Database, args _type.Args) _interface.Reply {
 		db.Remove(key) // list已为空，移除该key
 	}
 	if count > 0 {
-		db.ToAof(utils.ToCmdLine("LRem", args...))
+		db.ToAof(utils.ToCmd("LRem", args...))
 	}
 	return Reply.MakeIntReply(int64(count))
 }

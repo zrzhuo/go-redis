@@ -95,7 +95,6 @@ func (handler *RedisHandler) Close() error {
 
 // 关闭指定连接
 func (handler *RedisHandler) closeClient(client *redis.Client) {
-	_ = client.Close()
-	handler.engine.AfterClientClose(client)
+	handler.engine.CloseClient(client)
 	handler.clients.Delete(client)
 }

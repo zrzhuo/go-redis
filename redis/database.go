@@ -38,6 +38,19 @@ func MakeDatabase(idx int) *Database {
 		ttl:  Dict.MakeConcurrentDict[string, time.Time](ttlSize),
 		//version: Dict.MakeConcurrentDict[string, uint32](dataSize),
 		locker: _sync.MakeLocker(lockerSize),
+		ToAof:  func(line _type.CmdLine) {},
+	}
+	return database
+}
+
+func MakeSimpleDatabase(idx int) *Database {
+	database := &Database{
+		idx:  idx,
+		data: Dict.MakeSimpleDict[string, *_type.Entity](),
+		ttl:  Dict.MakeSimpleDict[string, time.Time](),
+		//version: Dict.MakeSimpleDict[string, uint32](),
+		locker: _sync.MakeLocker(1),
+		ToAof:  func(line _type.CmdLine) {},
 	}
 	return database
 }
@@ -180,6 +193,21 @@ func (db *Database) Removes(keys ...string) (count int) {
 		}
 	}
 	return count
+}
+
+//type Consumer[K comparable, V any] func(key K, val V) bool
+
+// ForEach traverses all the keys in the database
+func (db *Database) ForEach(operate func(key string, entity *_type.Entity, expire *time.Time) bool) {
+	consumer := func(key string, entity *_type.Entity) bool {
+		var expire *time.Time = nil
+		expireTime, ok := db.ttl.Get(key)
+		if ok {
+			expire = &expireTime
+		}
+		return operate(key, entity, expire)
+	}
+	db.data.ForEach(consumer)
 }
 
 func (db *Database) Flush() {

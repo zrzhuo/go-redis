@@ -6,6 +6,7 @@ import (
 	_interface "go-redis/interface"
 	Reply "go-redis/resp/reply"
 	"go-redis/utils/sync"
+	"strconv"
 )
 
 type Pubsub struct {
@@ -40,7 +41,37 @@ func (ps *Pubsub) Subscribe(client _interface.Client, channels []string) _interf
 			continue
 		}
 		subscribers.Add(client)
-		reply := Reply.MakeArrayReply([][]byte{[]byte("subscribe"), []byte(channel)})
+		reply := Reply.ToArrayReply("subscribe", channel)
+		_, _ = client.Write(reply.ToBytes())
+	}
+	return Reply.MakeNoReply()
+}
+
+func (ps *Pubsub) UnSubscribe(client _interface.Client, channels []string) _interface.Reply {
+	// 上锁
+	ps.locker.Locks(channels...)
+	defer ps.locker.UnLocks(channels...)
+	//
+	if len(channels) == 0 {
+		reply := Reply.ToArrayReply("unsubscribe", "-1", "0")
+		_, _ = client.Write(reply.ToBytes())
+	}
+	// unsubscribe
+	for _, channel := range channels {
+		client.UnSubscribe(channel)
+		subscribers, ok := ps.table.Get(channel)
+		// 当前channel不存在
+		if !ok {
+			continue
+		}
+		equalFunc := func(target _interface.Client) bool {
+			return client == target
+		}
+		subscribers.RemoveAll(equalFunc)
+		if subscribers.Len() == 0 {
+			ps.table.Remove(channel) // 无任何订阅者，移除该channel
+		}
+		reply := Reply.ToArrayReply("unsubscribe", channel, strconv.Itoa(client.SubsCount()))
 		_, _ = client.Write(reply.ToBytes())
 	}
 	return Reply.MakeNoReply()
@@ -55,11 +86,7 @@ func (ps *Pubsub) Publish(client _interface.Client, channel string, message []by
 		return Reply.MakeIntReply(0)
 	}
 	respFunc := func(i int, c _interface.Client) bool {
-		replyArgs := make([][]byte, 3)
-		replyArgs[0] = []byte("message")
-		replyArgs[1] = []byte(channel)
-		replyArgs[2] = message
-		reply := Reply.MakeArrayReply(replyArgs)
+		reply := Reply.ToArrayReply("message", channel, string(message))
 		_, _ = c.Write(reply.ToBytes())
 		return true
 	}

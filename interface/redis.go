@@ -30,6 +30,6 @@ type Client interface {
 
 type DB interface {
 	Exec(client Client, cmdLine _type.CmdLine) Reply
-	AfterClientClose(client Client)
+	CloseClient(client Client)
 	Close()
 }

@@ -50,7 +50,7 @@ func execDel(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	count := db.Removes(keys...)
 	if count > 0 {
-		db.ToAof(utils.ToCmdLine("Del", args...))
+		db.ToAof(utils.ToCmd("Del", args...))
 	}
 	return Reply.MakeIntReply(int64(count))
 }
@@ -185,7 +185,7 @@ func execPersist(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeIntReply(0) // key存在但未设置过期时间，返回0
 	}
 	db.Persist(key)
-	db.ToAof(utils.ToCmdLine("Persist", args...))
+	db.ToAof(utils.ToCmd("Persist", args...))
 	return Reply.MakeIntReply(1) // 取消过期成功，返回1
 }
 

@@ -80,11 +80,12 @@ func execSet(db *redis.Database, args _type.Args) _interface.Reply {
 	case "NX":
 		res = db.PutIfAbsent(key, entity)
 	default:
-		res = db.Put(key, entity)
+		db.Put(key, entity)
+		res = 1
 	}
 	// aof和expire
 	if res > 0 {
-		db.ToAof(utils.ToCmdLine("Set", args[0], args[1]))
+		db.ToAof(utils.ToCmd("Set", args[0], args[1]))
 		if ttl > 0 {
 			expireTime := time.Now().Add(time.Duration(ttl) * time.Millisecond)
 			db.SetExpire(key, expireTime)
@@ -101,7 +102,7 @@ func execSetNX(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	entity := _type.NewEntity(args[1])
 	result := db.PutIfAbsent(key, entity)
-	db.ToAof(utils.ToCmdLine("SetNX", args...))
+	db.ToAof(utils.ToCmd("SetNX", args...))
 	return Reply.MakeIntReply(int64(result))
 }
 
@@ -117,7 +118,7 @@ func execSetEX(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(args[2])
 	// put
 	db.Put(key, entity)
-	db.ToAof(utils.ToCmdLine("SetEX", args...))
+	db.ToAof(utils.ToCmd("SetEX", args...))
 	expireTime := time.Now().Add(time.Duration(ttl) * time.Millisecond)
 	// expire
 	db.SetExpire(key, expireTime)
@@ -200,8 +201,8 @@ func execGetEX(db *redis.Database, args _type.Args) _interface.Reply {
 			if flag {
 				return Reply.MakeSyntaxErrReply()
 			}
-			db.Persist(key)                               // persist
-			db.ToAof(utils.ToCmdLine("Persist", args[0])) // aof
+			db.Persist(key)                           // persist
+			db.ToAof(utils.ToCmd("Persist", args[0])) // aof
 		default:
 			return Reply.MakeSyntaxErrReply()
 		}
@@ -222,8 +223,8 @@ func execGetSet(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	entity := _type.NewEntity(newVal)
 	db.Put(key, entity)
-	db.Persist(key)                           // persist
-	db.ToAof(utils.ToCmdLine("Set", args...)) // aof
+	db.Persist(key)                       // persist
+	db.ToAof(utils.ToCmd("Set", args...)) // aof
 	if oldVal == nil {
 		return Reply.MakeNullBulkReply() // 旧值不存在
 	}
@@ -240,7 +241,7 @@ func execGetDel(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeNullBulkReply()
 	}
 	db.Remove(key)
-	db.ToAof(utils.ToCmdLine("Del", args...))
+	db.ToAof(utils.ToCmd("Del", args...))
 	return Reply.MakeBulkReply(val)
 }
 
@@ -265,7 +266,7 @@ func execAppend(db *redis.Database, args _type.Args) _interface.Reply {
 	val = append(val, args[1]...)
 	entity := _type.NewEntity(val)
 	db.Put(key, entity)
-	db.ToAof(utils.ToCmdLine("append", args...))
+	db.ToAof(utils.ToCmd("append", args...))
 	return Reply.MakeIntReply(int64(len(val)))
 }
 
@@ -278,7 +279,7 @@ func execMSet(db *redis.Database, args _type.Args) _interface.Reply {
 		entity := _type.NewEntity(val)
 		db.Put(key, entity)
 	}
-	db.ToAof(utils.ToCmdLine("MSet", args...))
+	db.ToAof(utils.ToCmd("MSet", args...))
 	return Reply.MakeOkReply()
 }
 
@@ -300,7 +301,7 @@ func execMSetNX(db *redis.Database, args _type.Args) _interface.Reply {
 		entity := _type.NewEntity(val)
 		db.Put(key, entity)
 	}
-	db.ToAof(utils.ToCmdLine("MSetNX", args...))
+	db.ToAof(utils.ToCmd("MSetNX", args...))
 	return Reply.MakeIntReply(1)
 }
 

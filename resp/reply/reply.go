@@ -39,6 +39,14 @@ func MakeArrayReply(args [][]byte) *ArrayReply {
 	}
 }
 
+func ToArrayReply(lines ...string) *ArrayReply {
+	args := make([][]byte, len(lines))
+	for i, line := range lines {
+		args[i] = []byte(line)
+	}
+	return MakeArrayReply(args)
+}
+
 func (r *ArrayReply) ToBytes() []byte {
 	length := len(r.Args)
 	var buf bytes.Buffer
