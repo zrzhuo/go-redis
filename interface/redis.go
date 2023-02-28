@@ -24,12 +24,22 @@ type Client interface {
 
 	Subscribe(channel string)
 	UnSubscribe(channel string)
-	SubsCount() int
+	ChannelsCount() int
 	GetChannels() []string
+
+	IsTxState() bool
+	SetTxState(flag bool)
+	EnTxQueue(cmdLine _type.CmdLine)
+	GetTxQueue() []_type.CmdLine
+	ClearTxQueue()
+	AddTxError(err error)
+	GetTxError() []error
+
+	//GetWatching() map[string]uint32
 }
 
 type Server interface {
-	Exec(client Client, cmdLine _type.CmdLine) Reply
+	ExecWithLock(client Client, cmdLine _type.CmdLine) Reply
 	CloseClient(client Client)
 	Close()
 }

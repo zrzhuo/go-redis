@@ -61,7 +61,7 @@ func (db *Database) Execute(client _interface.Client, cmdLine _type.CmdLine) _in
 
 func (db *Database) execCommand(cmdLine _type.CmdLine) _interface.Reply {
 	cmdName := strings.ToLower(string(cmdLine[0])) // 获取命令
-	cmd, ok := Commands[cmdName]
+	cmd, ok := CmdRouter[cmdName]
 	// 是否存在该命令
 	if !ok {
 		return Reply.MakeErrReply("unknown command '" + cmdName + "'")

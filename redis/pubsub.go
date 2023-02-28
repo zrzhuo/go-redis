@@ -71,7 +71,7 @@ func (ps *Pubsub) UnSubscribe(client _interface.Client, channels []string) _inte
 		if subscribers.Len() == 0 {
 			ps.table.Remove(channel) // 无任何订阅者，移除该channel
 		}
-		reply := Reply.ToArrayReply("unsubscribe", channel, strconv.Itoa(client.SubsCount()))
+		reply := Reply.ToArrayReply("unsubscribe", channel, strconv.Itoa(client.ChannelsCount()))
 		_, _ = client.Write(reply.ToBytes())
 	}
 	return Reply.MakeNoReply()

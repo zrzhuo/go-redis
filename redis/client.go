@@ -1,6 +1,7 @@
 package redis
 
 import (
+	_type "go-redis/interface/type"
 	_sync "go-redis/utils/sync"
 	"net"
 	"sync"
@@ -12,8 +13,45 @@ type Client struct {
 	selectedDB int    // 选择的数据库id
 	password   string // 密码
 	wait       _sync.Wait
-	mu         sync.Mutex
-	subs       map[string]bool
+
+	// 发布订阅
+	channels map[string]bool // 当前订阅的channel
+	locker   sync.Mutex      // 锁
+
+	// 事务
+	txState bool              // 事务状态
+	txQueue []_type.CmdLine   // 命令队列
+	txError []error           // 错误
+	txWatch map[string]uint32 // watch
+}
+
+/* ---- transaction ---- */
+
+func (client *Client) IsTxState() bool {
+	return client.txState
+}
+
+func (client *Client) SetTxState(flag bool) {
+	client.txState = flag
+}
+
+func (client *Client) EnTxQueue(cmdLine _type.CmdLine) {
+	client.txQueue = append(client.txQueue, cmdLine)
+}
+
+func (client *Client) GetTxQueue() []_type.CmdLine {
+	return client.txQueue
+}
+func (client *Client) ClearTxQueue() {
+	client.txQueue = nil
+}
+
+func (client *Client) AddTxError(err error) {
+	client.txError = append(client.txError, err)
+}
+
+func (client *Client) GetTxError() []error {
+	return client.txError
 }
 
 // 连接池
@@ -93,34 +131,34 @@ func (client *Client) GetPassword() string {
 /* ---- publish/subscribe ---- */
 
 func (client *Client) Subscribe(channel string) {
-	client.mu.Lock() // 上锁
-	defer client.mu.Unlock()
-	if client.subs == nil {
-		client.subs = make(map[string]bool)
+	client.locker.Lock() // 上锁
+	defer client.locker.Unlock()
+	if client.channels == nil {
+		client.channels = make(map[string]bool)
 	}
-	client.subs[channel] = true
+	client.channels[channel] = true
 }
 
 func (client *Client) UnSubscribe(channel string) {
-	client.mu.Lock() // 上锁
-	defer client.mu.Unlock()
-	if client.subs == nil {
+	client.locker.Lock() // 上锁
+	defer client.locker.Unlock()
+	if client.channels == nil {
 		return
 	}
-	delete(client.subs, channel)
+	delete(client.channels, channel)
 }
 
-func (client *Client) SubsCount() int {
-	return len(client.subs)
+func (client *Client) ChannelsCount() int {
+	return len(client.channels)
 }
 
 func (client *Client) GetChannels() []string {
-	if client.subs == nil {
+	if client.channels == nil {
 		return make([]string, 0)
 	}
-	channels := make([]string, len(client.subs))
+	channels := make([]string, len(client.channels))
 	i := 0
-	for channel := range client.subs {
+	for channel := range client.channels {
 		channels[i] = channel
 		i++
 	}

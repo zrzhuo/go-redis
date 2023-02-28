@@ -46,7 +46,7 @@ func execSMembers(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if set == nil {
-		return reply.MakeEmptyMultiBulkReply()
+		return reply.MakeEmptyArrayReply()
 	}
 	members, size := set.Members(), set.Len()
 	result := make([][]byte, size)

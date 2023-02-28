@@ -253,7 +253,7 @@ func execLRange(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeEmptyMultiBulkReply()
+		return Reply.MakeEmptyArrayReply()
 	}
 	size := list.Len()
 	// 解析start

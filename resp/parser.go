@@ -171,7 +171,7 @@ func (parser *Parser) parseMultiBulk(header []byte) error {
 		parser.handleError("illegal multi bulk header '" + string(header[1:]) + "'")
 		return nil
 	} else if size == 0 {
-		reply := Reply.MakeEmptyMultiBulkReply() // Empty Multi Bulk Strings
+		reply := Reply.MakeEmptyArrayReply() // Empty Multi Bulk Strings
 		parser.ch <- &Payload{Data: reply}
 		return nil
 	}

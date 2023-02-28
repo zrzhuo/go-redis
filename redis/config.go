@@ -2,8 +2,9 @@ package redis
 
 import (
 	"bufio"
+	"errors"
+	"fmt"
 	"go-redis/utils/logger"
-	"io"
 	"os"
 	"reflect"
 	"strconv"
@@ -11,16 +12,17 @@ import (
 )
 
 type ServerConfig struct {
-	Bind           string `cfg:"bind"`           // 绑定ip
-	Port           int    `cfg:"port"`           // 端口
-	MaxClients     int    `cfg:"maxclients"`     // 同一时刻的最大客户端数
-	Databases      int    `cfg:"databases"`      //数据库的数量
-	AppendOnly     bool   `cfg:"appendonly"`     // 是否开启aof
-	AppendFilename string `cfg:"appendfilename"` // aof文件名
-	AppendFsync    string `cfg:"appendfsync"`    // aof文件写磁盘策略
-	RequirePass    string `cfg:"requirepass"`    // 密码
+	// 为进行反射，所有字段都仅有首字母大写
+	Bind        string // 绑定ip
+	Port        int    // 端口
+	Maxclients  int    // 同一时刻的最大客户端数
+	Databases   int    //数据库的数量
+	Requirepass string // 密码
 
-	//RDBFilename       string   `cfg:"dbfilename"`
+	Appendonly     bool   // 是否开启aof
+	Appendfilename string // aof文件名
+	Appendfsync    string // aof文件写磁盘策略
+
 	//MasterAuth        string   `cfg:"masterauth"`
 	//SlaveAnnouncePort int      `cfg:"slave-announce-port"`
 	//SlaveAnnounceIP   string   `cfg:"slave-announce-ip"`
@@ -29,78 +31,93 @@ type ServerConfig struct {
 	//Self              string   `cfg:"self"`
 }
 
-var Config *ServerConfig
-
-func init() {
-	Config = &ServerConfig{
-		Bind:       "127.0.0.1",
-		Port:       6666,
-		MaxClients: 128,
-	}
+// Config 全局配置变量
+var Config = &ServerConfig{
+	Bind:        "127.0.0.1",
+	Port:        6666,
+	Maxclients:  128,
+	Requirepass: "",
+	Appendonly:  false,
 }
 
-// ParseConfig 从配置文件中读取配置
-func ParseConfig(path string) {
-	file, err := os.Open(path) // 打开文件
+var ConfigType = reflect.TypeOf(Config).Elem()
+
+var ConfigValue = reflect.ValueOf(Config).Elem()
+
+func InitConfig(path string) {
+	// 打开文件
+	file, err := os.Open(path)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close() // 关闭文件
-	Config = parse(file)
-}
-
-func parse(file io.Reader) *ServerConfig {
-	config := &ServerConfig{}
-	// read config file
-	rawMap := make(map[string]string)
+	// 读取文件
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
+		// 忽略注释(#开头)
 		if len(line) > 0 && strings.TrimLeft(line, " ")[0] == '#' {
 			continue
 		}
+		// 解析配置行
 		pivot := strings.IndexAny(line, " ")
-		if pivot > 0 && pivot < len(line)-1 { // separator found
-			key := line[0:pivot]
-			value := strings.Trim(line[pivot+1:], " ")
-			rawMap[strings.ToLower(key)] = value
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		logger.Fatal(err)
-	}
-	// parse format
-	t := reflect.TypeOf(config)
-	v := reflect.ValueOf(config)
-	n := t.Elem().NumField()
-	for i := 0; i < n; i++ {
-		field := t.Elem().Field(i)
-		fieldVal := v.Elem().Field(i)
-		key, ok := field.Tag.Lookup("cfg")
-		if !ok || strings.TrimLeft(key, " ") == "" {
-			key = field.Name
-		}
-		value, ok := rawMap[strings.ToLower(key)]
-		if ok {
-			// fill config
-			switch field.Type.Kind() {
-			case reflect.String:
-				fieldVal.SetString(value)
-			case reflect.Int:
-				intValue, err := strconv.ParseInt(value, 10, 64)
-				if err == nil {
-					fieldVal.SetInt(intValue)
-				}
-			case reflect.Bool:
-				boolValue := "yes" == value
-				fieldVal.SetBool(boolValue)
-			case reflect.Slice:
-				if field.Type.Elem().Kind() == reflect.String {
-					slice := strings.Split(value, ",")
-					fieldVal.Set(reflect.ValueOf(slice))
-				}
+		if pivot > 0 && pivot < len(line)-1 {
+			key := strings.ToLower(line[0:pivot])
+			val := strings.Trim(line[pivot+1:], " ")
+			// 注入config
+			err = SetConfig(key, val)
+			if err != nil {
+				logger.Warn(err.Error())
 			}
 		}
 	}
-	return config
+	if err = scanner.Err(); err != nil {
+		logger.Fatal(err)
+	}
+}
+
+func SetConfig(key string, val string) error {
+	name := strings.ToUpper(key[:1]) + strings.ToLower(key[1:])
+	fieldVal := ConfigValue.FieldByName(name)
+	field, ok := ConfigType.FieldByName(name)
+	if !ok {
+		return errors.New(fmt.Sprintf("unknown config option '%s'", name))
+	}
+	switch field.Type.Kind() {
+	case reflect.Bool:
+		fieldVal.SetBool("yes" == val)
+	case reflect.String:
+		fieldVal.SetString(val)
+	case reflect.Int:
+		intValue, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return errors.New(fmt.Sprintf("invalid value for config option '%s'", name))
+		}
+		fieldVal.SetInt(intValue)
+	case reflect.Slice:
+		if field.Type.Elem().Kind() == reflect.String {
+			slice := strings.Split(val, ",")
+			fieldVal.Set(reflect.ValueOf(slice))
+		}
+	}
+	return nil
+}
+
+func GetConfig(key string) (string, bool) {
+	name := strings.ToUpper(key[:1]) + strings.ToLower(key[1:])
+	fieldVal := ConfigValue.FieldByName(name)
+	field, ok := ConfigType.FieldByName(name)
+	if !ok {
+		return "", false
+	}
+	var val string
+	switch field.Type.Kind() {
+	case reflect.Bool:
+		val = strconv.FormatBool(fieldVal.Bool())
+	case reflect.String:
+		val = fieldVal.String()
+	case reflect.Int:
+		val = strconv.FormatInt(fieldVal.Int(), 10)
+	}
+	return val, true
 }

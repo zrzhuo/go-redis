@@ -14,22 +14,21 @@ import (
 	"sync"
 )
 
-type RedisHandler struct {
+type Handler struct {
 	server  _interface.Server
 	clients sync.Map
 	closing _sync.Boolean // 标志当前handler是否处于"closing"的状态
 }
 
-func MakeRedisHandler() *RedisHandler {
+func MakeHandler() *Handler {
 	server := redis.MakeServer()
-	// 注册所有命令
-	commands.RegisterAllCommand()
-	return &RedisHandler{
+	commands.RegisterAllCommand() // 注册所有命令
+	return &Handler{
 		server: server,
 	}
 }
 
-func (handler *RedisHandler) Handle(conn net.Conn) {
+func (handler *Handler) Handle(conn net.Conn) {
 	if handler.closing.Get() {
 		_ = conn.Close() // handler正处于closing状态，拒绝该连接
 		return
@@ -72,7 +71,7 @@ func (handler *RedisHandler) Handle(conn net.Conn) {
 		}
 		cmdLine := reply.Args
 		// 执行命令
-		result := handler.server.Exec(client, cmdLine)
+		result := handler.server.ExecWithLock(client, cmdLine)
 		if result != nil {
 			_, _ = client.Write(result.ToBytes())
 		} else {
@@ -81,7 +80,7 @@ func (handler *RedisHandler) Handle(conn net.Conn) {
 	}
 }
 
-func (handler *RedisHandler) Close() error {
+func (handler *Handler) Close() error {
 	logger.Info("handler shutting down...")
 	handler.closing.Set(true) // 设置为closing状态
 	handler.clients.Range(func(key any, val any) bool {
@@ -97,7 +96,7 @@ func (handler *RedisHandler) Close() error {
 }
 
 // 关闭指定连接
-func (handler *RedisHandler) closeClient(client *redis.Client) {
+func (handler *Handler) closeClient(client *redis.Client) {
 	handler.server.CloseClient(client)
 	handler.clients.Delete(client)
 }

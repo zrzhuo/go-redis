@@ -17,11 +17,9 @@ import (
 )
 
 const (
-	aofChanSize = 1 << 16
-
-	FsyncAlways   = "always"   // do fsync for every command
-	FsyncEverysec = "everysec" // do fsync every second
-	FsyncNo       = "no"       // lets operating system decides when to do fsync
+	FsyncAlways   = "always"
+	FsyncEverysec = "everysec"
+	FsyncNo       = "no"
 )
 
 type aofMsg struct {
@@ -63,7 +61,7 @@ func NewPersister(server *Server, filename string, fsync string) *Persister {
 	}
 	pst.file = aofFile
 
-	pst.msgCh = make(chan *aofMsg, aofChanSize)
+	pst.msgCh = make(chan *aofMsg, 1<<16)
 	pst.doneCh = make(chan struct{})
 	pst.reading = false
 	return pst
@@ -194,7 +192,7 @@ func (pst *Persister) ReadAOF(size int64) {
 			}
 		}
 		// 执行命令
-		reply := pst.server.Exec(aofConn, cmd.Args)
+		reply := pst.server.ExecWithLock(aofConn, cmd.Args)
 		if Reply.IsErrorReply(reply) {
 			logger.Error("execute error: ", string(reply.ToBytes()))
 		}

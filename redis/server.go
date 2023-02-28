@@ -8,6 +8,7 @@ import (
 	"go-redis/utils/logger"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"sync/atomic"
 )
 
@@ -15,6 +16,7 @@ type Server struct {
 	databases []*atomic.Value // 若干个redis数据库
 	persister *Persister      // AOF持久化
 	pubsub    *Pubsub         // pub/sub
+	lock      sync.Mutex      // 锁
 }
 
 // MakeServer 读取配置，创建server
@@ -35,8 +37,8 @@ func MakeServer() *Server {
 	// pub/sub
 	server.pubsub = MakePubsub()
 	// AOF持久化
-	if Config.AppendOnly {
-		filename, fsync := Config.AppendFilename, Config.AppendFsync
+	if Config.Appendonly {
+		filename, fsync := Config.Appendfilename, Config.Appendfsync
 		persister := NewPersister(server, filename, fsync)
 		// 为每个database开启aof
 		for i := range server.databases {
@@ -70,7 +72,7 @@ func MakeTempServer() *Server {
 	return server
 }
 
-func (server *Server) Exec(client _interface.Client, cmdLine _type.CmdLine) (reply _interface.Reply) {
+func (server *Server) ExecWithLock(client _interface.Client, cmdLine _type.CmdLine) (reply _interface.Reply) {
 	// 异常处理
 	defer func() {
 		if err := recover(); err != nil {
@@ -78,41 +80,84 @@ func (server *Server) Exec(client _interface.Client, cmdLine _type.CmdLine) (rep
 			reply = &Reply.UnknownErrReply{}
 		}
 	}()
-	// 解析命令行
+	//上锁
+	server.Lock()
+	defer server.Unlock()
 	cmd := strings.ToLower(string(cmdLine[0]))
 	args := _type.Args(cmdLine[1:])
-	// 无需auth的命令
-	if cmd == "ping" {
-		return server.execPing(client, args) // ping
-	}
+	// auth
 	if cmd == "auth" {
-		return server.execAuth(client, args) // auth
+		return execAuth(server, client, args)
 	}
-	// 判断auth
 	if !server.isAuth(client) {
-		return Reply.MakeErrReply("authentication required")
+		return Reply.MakeErrReply("NOAUTH Authentication required.")
 	}
-	// 需要auth的命令
-	switch cmd {
-	case "select":
-		return server.execSelect(client, args) // 选择数据库
-	case "flushdb":
-		return server.execFlushDB(client, args) // 清空数据库
-	case "flushall":
-		return server.execFlushAll(client, args) // 清空所有数据库
-	case "subscribe":
-		return server.execSubscribe(client, args) // 订阅
-	case "unsubscribe":
-		return server.execUnSubscribe(client, args) // 订阅
-	case "publish":
-		return server.execPublish(client, args) // 发布
-	case "rewriteaof":
-		return server.execReWriteAOF(client, args) // aof重写
-	case "bgrewriteaof":
-		return server.execBGReWriteAOF(client, args) // 异步aof重写
-	default:
-		return server.execCommand(client, cmdLine) // db命令
+	// 事务处理
+	if client.IsTxState() && cmd != "exec" && cmd != "discard" {
+		return server.handleTX(client, cmdLine)
 	}
+	// 分发命令
+	sysCmd, ok := SysCmdRouter[cmd]
+	if ok {
+		return sysCmd.SysExec(server, client, args) // 执行系统命令
+	}
+	return server.execCommand(client, cmdLine) // 执行数据库命令
+}
+
+func (server *Server) ExecWithoutLock(client _interface.Client, cmdLine _type.CmdLine) (reply _interface.Reply) {
+	// 异常处理
+	defer func() {
+		if err := recover(); err != nil {
+			logger.Error(fmt.Sprintf("error occurs: %v\n%s", err, string(debug.Stack())))
+			reply = &Reply.UnknownErrReply{}
+		}
+	}()
+	cmd := strings.ToLower(string(cmdLine[0]))
+	args := _type.Args(cmdLine[1:])
+	// 分发命令
+	sysCmd, ok := SysCmdRouter[cmd]
+	if ok {
+		return sysCmd.SysExec(server, client, args) // 执行系统命令
+	}
+	return server.execCommand(client, cmdLine) // 执行数据库命令
+}
+
+func (server *Server) execCommand(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
+	dbIdx := client.GetSelectDB()
+	if dbIdx < 0 || dbIdx >= len(server.databases) {
+		err := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
+		return Reply.MakeErrReply(err)
+	}
+	db := server.databases[dbIdx].Load().(*Database)
+	return db.Execute(client, cmdLine)
+}
+
+func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
+	name := strings.ToLower(string(cmdLine[0]))
+	sysCmd, ok := SysCmdRouter[name]
+	if ok {
+		// 参数个数是否满足要求
+		if !checkArgNum(sysCmd.Arity, cmdLine) {
+			errReply := Reply.MakeArgNumErrReply(name)
+			client.AddTxError(errReply)
+			return errReply
+		}
+		client.EnTxQueue(cmdLine)
+		return Reply.MakeQueuedReply()
+	}
+	cmd, ok := CmdRouter[name]
+	if ok {
+		if !checkArgNum(cmd.Arity, cmdLine) {
+			errReply := Reply.MakeArgNumErrReply(name)
+			client.AddTxError(errReply)
+			return errReply
+		}
+		client.EnTxQueue(cmdLine)
+		return Reply.MakeQueuedReply()
+	}
+	errReply := Reply.MakeErrReply("unknown command '" + name + "'")
+	client.AddTxError(errReply)
+	return errReply
 }
 
 func (server *Server) CloseClient(client _interface.Client) {
@@ -134,8 +179,16 @@ func (server *Server) Close() {
 }
 
 func (server *Server) isAuth(client _interface.Client) bool {
-	if Config.RequirePass == "" {
+	if Config.Requirepass == "" {
 		return true // 未设置密码
 	}
-	return client.GetPassword() == Config.RequirePass // 密码是否一致
+	return client.GetPassword() == Config.Requirepass // 密码是否一致
+}
+
+func (server *Server) Lock() {
+	server.lock.Lock()
+}
+
+func (server *Server) Unlock() {
+	server.lock.Unlock()
 }

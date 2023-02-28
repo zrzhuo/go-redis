@@ -48,20 +48,20 @@ func (r *NullBulkReply) ToBytes() []byte {
 	return nullBulkBytes
 }
 
-/* ---- Empty Multi Bulk Strings Reply ---- */
+/* ---- Empty Array (Multi Bulk Strings)  Reply ---- */
 
-type EmptyMultiBulkReply struct{}
+type EmptyArrayReply struct{}
 
-var emptyMultiBulkReply = &EmptyMultiBulkReply{}
+var emptyArrayReply = &EmptyArrayReply{}
 
-var emptyMultiBulkBytes = []byte("*0" + CRLF)
+var emptyArrayBytes = []byte("*0" + CRLF)
 
-func MakeEmptyMultiBulkReply() *EmptyMultiBulkReply {
-	return emptyMultiBulkReply
+func MakeEmptyArrayReply() *EmptyArrayReply {
+	return emptyArrayReply
 }
 
-func (r *EmptyMultiBulkReply) ToBytes() []byte {
-	return emptyMultiBulkBytes
+func (r *EmptyArrayReply) ToBytes() []byte {
+	return emptyArrayBytes
 }
 
 /* ---- Empty Multi Bulk Strings Reply ---- */
