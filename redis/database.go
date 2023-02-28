@@ -8,6 +8,7 @@ import (
 	ZSet "go-redis/datastruct/zset"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
+	"go-redis/redis/utils"
 	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	_sync "go-redis/utils/sync"
@@ -23,43 +24,39 @@ const (
 )
 
 type Database struct {
-	idx  int                              // 数据库编号
-	data Dict.Dict[string, *_type.Entity] // 数据
-	ttl  Dict.Dict[string, time.Time]     // 超时时间
-	//version Dict.Dict[string, uint32]        // 版本，用于事务
-	locker *_sync.Locker       // 锁，用于执行命令时为key加锁
-	ToAOF  func(_type.CmdLine) // 添加命令到aof
+	idx     int                              // 数据库编号
+	data    Dict.Dict[string, *_type.Entity] // 数据
+	ttl     Dict.Dict[string, time.Time]     // 超时时间
+	version Dict.Dict[string, int]           // 版本，用于watch
+	locker  *_sync.Locker                    // 锁，用于执行命令时为key加锁
+	ToAOF   func(_type.CmdLine)              // 添加命令到aof
 }
 
 func MakeDatabase(idx int) *Database {
 	database := &Database{
-		idx:  idx,
-		data: Dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
-		ttl:  Dict.MakeConcurrentDict[string, time.Time](ttlSize),
-		//version: Dict.MakeConcurrentDict[string, uint32](dataSize),
-		locker: _sync.MakeLocker(lockerSize),
-		ToAOF:  func(line _type.CmdLine) {},
+		idx:     idx,
+		data:    Dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
+		ttl:     Dict.MakeConcurrentDict[string, time.Time](ttlSize),
+		version: Dict.MakeConcurrentDict[string, int](dataSize),
+		locker:  _sync.MakeLocker(lockerSize),
+		ToAOF:   func(line _type.CmdLine) {},
 	}
 	return database
 }
 
 func MakeSimpleDatabase(idx int) *Database {
 	database := &Database{
-		idx:  idx,
-		data: Dict.MakeSimpleDict[string, *_type.Entity](),
-		ttl:  Dict.MakeSimpleDict[string, time.Time](),
-		//version: Dict.MakeSimpleDict[string, uint32](),
-		locker: _sync.MakeLocker(1),
-		ToAOF:  func(line _type.CmdLine) {},
+		idx:     idx,
+		data:    Dict.MakeSimpleDict[string, *_type.Entity](),
+		ttl:     Dict.MakeSimpleDict[string, time.Time](),
+		version: Dict.MakeSimpleDict[string, int](),
+		locker:  _sync.MakeLocker(1),
+		ToAOF:   func(line _type.CmdLine) {},
 	}
 	return database
 }
 
 func (db *Database) Execute(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
-	return db.execCommand(cmdLine)
-}
-
-func (db *Database) execCommand(cmdLine _type.CmdLine) _interface.Reply {
 	cmdName := strings.ToLower(string(cmdLine[0])) // 获取命令
 	cmd, ok := CmdRouter[cmdName]
 	// 是否存在该命令
@@ -67,27 +64,20 @@ func (db *Database) execCommand(cmdLine _type.CmdLine) _interface.Reply {
 		return Reply.MakeErrReply("unknown command '" + cmdName + "'")
 	}
 	// 参数个数是否满足要求
-	if !checkArgNum(cmd.Arity, cmdLine) {
+	if !utils.CheckArgNum(cmd.Arity, cmdLine) {
 		return Reply.MakeArgNumErrReply(cmdName)
 	}
-	args := _type.Args(cmdLine[1:])           // 获取参数
-	writeKeys, readKeys := cmd.keysFind(args) // 获取需要加锁的key
-	//db.addVersion(writeKeys...)
-	// 加锁
+	args := _type.Args(cmdLine[1:])
+	// 获取有关的key
+	writeKeys, readKeys := cmd.keysFind(args)
+	// 对有关的key加锁
 	db.lockKeys(writeKeys, readKeys)
 	defer db.unLockKeys(writeKeys, readKeys)
+	// 修改版本
+	db.AddVersion(writeKeys...)
 	// 执行
 	reply := cmd.Execute(db, args)
 	return reply
-}
-
-// 检查参数个数是否满足要求
-func checkArgNum(arity int, cmdLine _type.CmdLine) bool {
-	argNum := len(cmdLine)
-	if arity >= 0 {
-		return argNum == arity
-	}
-	return argNum >= -arity
 }
 
 /* ----- Lock Keys----- */
@@ -149,6 +139,23 @@ func (db *Database) IsExpired(key string) bool {
 		db.Remove(key) // 过期，移除key
 	}
 	return isExpired
+}
+
+/* ----- version ----- */
+
+func (db *Database) AddVersion(keys ...string) {
+	for _, key := range keys {
+		version := db.GetVersion(key)
+		db.version.Put(key, version+1)
+	}
+}
+
+func (db *Database) GetVersion(key string) int {
+	version, ok := db.version.Get(key)
+	if !ok {
+		return 0
+	}
+	return version
 }
 
 /* ----- Entity Operation ----- */

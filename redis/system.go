@@ -16,16 +16,22 @@ func init() {
 	RegisterSysCommand("ping", execPing, -1)
 	RegisterSysCommand("config", execConfig, -2)
 	RegisterSysCommand("select", execSelect, 2)
+
 	RegisterSysCommand("flushdb", execFlushDB, 1)
 	RegisterSysCommand("flushall", execFlushAll, 1)
+
 	RegisterSysCommand("subscribe", execSubscribe, -2)
-	RegisterSysCommand("unsubscribe", execUnSubscribe, -2)
-	RegisterSysCommand("publish", execPublish, -2)
+	RegisterSysCommand("unsubscribe", execUnSubscribe, 1)
+	RegisterSysCommand("publish", execPublish, 3)
+
 	RegisterSysCommand("rewriteaof", execReWriteAOF, 1)     // aof重写
 	RegisterSysCommand("bgrewriteaof", execBGReWriteAOF, 1) // 异步aof重写
-	RegisterSysCommand("multi", execMulti, 1)               // 开启事务
-	RegisterSysCommand("exec", execExec, 1)                 // 执行事务
-	RegisterSysCommand("discard", execDiscard, 1)           // 退出事务
+
+	RegisterSysCommand("multi", execMulti, 1)     // 开启事务
+	RegisterSysCommand("exec", execExec, 1)       // 执行事务
+	RegisterSysCommand("discard", execDiscard, 1) // 退出事务
+	RegisterSysCommand("watch", execWatch, -2)
+	RegisterSysCommand("unwatch", execUnWatch, 1)
 }
 
 func execSleep(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
@@ -35,8 +41,9 @@ func execSleep(server *Server, client _interface.Client, args _type.Args) _inter
 	}
 	time.Sleep(time.Duration(st) * time.Second)
 	return Reply.MakeStatusReply("sleep over")
-
 }
+
+/* ---- base ---- */
 
 func execPing(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	size := len(args)
@@ -49,11 +56,34 @@ func execPing(server *Server, client _interface.Client, args _type.Args) _interf
 	return Reply.MakeArgNumErrReply("Ping")
 }
 
-func execConfig(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
-	num := len(args)
-	if num == 0 {
-		return Reply.MakeArgNumErrReply("config")
+func execAuth(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
+	if Config.Requirepass == "" {
+		return Reply.MakeErrReply("no password is set.")
 	}
+	password := string(args[0])
+	client.SetPassword(password)
+	if password != Config.Requirepass {
+		return Reply.MakeErrReply("invalid password.")
+	}
+	return Reply.MakeOkReply()
+}
+
+func execSelect(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
+	dbIdx, err := strconv.Atoi(string(args[0]))
+	if err != nil {
+		return Reply.MakeErrReply("selected index is invalid")
+	}
+	if dbIdx >= len(server.databases) || dbIdx < 0 {
+		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
+		return Reply.MakeErrReply(msg)
+	}
+	client.SetSelectDB(dbIdx) // 修改client的dbIdx
+	return Reply.MakeOkReply()
+}
+
+/* ---- Config ---- */
+
+func execConfig(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	cmd := strings.ToLower(string(args[0]))
 	if cmd == "get" {
 		return execConfigGet(server, client, args)
@@ -98,41 +128,11 @@ func execConfigSet(server *Server, client _interface.Client, args _type.Args) _i
 	return Reply.MakeOkReply()
 }
 
-func execAuth(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
-	if len(args) != 1 {
-		return Reply.MakeArgNumErrReply("auth")
-	}
-	if Config.Requirepass == "" {
-		return Reply.MakeErrReply("no password is set.")
-	}
-	password := string(args[0])
-	client.SetPassword(password)
-	if password != Config.Requirepass {
-		return Reply.MakeErrReply("invalid password.")
-	}
-	return Reply.MakeOkReply()
-}
-
-func execSelect(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
-	dbIdx, err := strconv.Atoi(string(args[0]))
-	if err != nil {
-		return Reply.MakeErrReply("selected index is invalid")
-	}
-	if dbIdx >= len(server.databases) || dbIdx < 0 {
-		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return Reply.MakeErrReply(msg)
-	}
-	client.SetSelectDB(dbIdx) // 修改client的dbIdx
-	return Reply.MakeOkReply()
-}
+/* ---- flush ---- */
 
 func execFlushDB(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	dbIdx := client.GetSelectDB()
-	if dbIdx < 0 || dbIdx >= len(server.databases) {
-		err := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return Reply.MakeErrReply(err)
-	}
-	db := server.databases[dbIdx].Load().(*Database)
+	db := server.GetDatabase(dbIdx)
 	db.Flush()
 	db.ToAOF(utils.ToCmd("flushdb", []byte(strconv.Itoa(dbIdx))))
 	return Reply.MakeOkReply()
@@ -149,10 +149,9 @@ func execFlushAll(server *Server, client _interface.Client, args _type.Args) _in
 	return Reply.MakeOkReply()
 }
 
+/* ---- pub/sub ---- */
+
 func execSubscribe(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
-	if len(args) < 1 {
-		return Reply.MakeArgNumErrReply("subscribe")
-	}
 	channels := make([]string, len(args))
 	for i, arg := range args {
 		channels[i] = string(arg)
@@ -174,12 +173,11 @@ func execUnSubscribe(server *Server, client _interface.Client, args _type.Args) 
 }
 
 func execPublish(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
-	if len(args) != 2 {
-		return Reply.MakeArgNumErrReply("publish")
-	}
 	channel, message := string(args[0]), args[1]
 	return server.pubsub.Publish(client, channel, message)
 }
+
+/* ---- AOF ---- */
 
 func execReWriteAOF(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	err := server.persister.ReWrite()
@@ -194,4 +192,81 @@ func execBGReWriteAOF(server *Server, client _interface.Client, args _type.Args)
 		_ = server.persister.ReWrite()
 	}()
 	return Reply.MakeStatusReply("background aof rewriting started")
+}
+
+/* ---- transaction ---- */
+
+func execWatch(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
+	if client.IsTxState() {
+		return Reply.MakeErrReply("WATCH inside MULTI is not allowed")
+	}
+	client.InitWatch(server.DataBaseCount())
+	dbIdx := client.GetSelectDB()
+	db := server.GetDatabase(dbIdx)
+	for i := 0; i < len(args); i++ {
+		key := string(args[i])
+		version := db.GetVersion(key)
+		client.SetWatchKey(dbIdx, key, version)
+	}
+	return Reply.MakeOkReply()
+}
+
+func execUnWatch(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
+	client.DestoryWatch()
+	return Reply.MakeOkReply()
+}
+
+func execMulti(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
+	if client.IsTxState() {
+		return Reply.MakeErrReply("MULTI calls can not be nested")
+	}
+	client.SetTxState(true)
+	return Reply.MakeOkReply()
+}
+
+func execExec(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
+	if !client.IsTxState() {
+		return Reply.MakeErrReply("EXEC without MULTI")
+	}
+	// 执行事务期间禁止server执行其他命令
+	server.SetTxing(true)
+	defer server.SetTxing(false)
+	// 解除client事务状态，并清空txQueue和txWatch
+	defer client.SetTxState(false)
+	defer client.ClearTxQueue()
+	defer client.DestoryWatch()
+	// 检查被watch的keys是否被更改
+	for i, keys := range client.GetWatchKeys() {
+		db := server.GetDatabase(i)
+		for key, version := range keys {
+			currVersion := db.GetVersion(key)
+			if version != currVersion {
+				return Reply.MakeNullBulkReply() // 已被修改，放弃事务执行
+			}
+		}
+	}
+	// 检查是否出现错误
+	if len(client.GetTxError()) > 0 {
+		return Reply.MakeErrReply("EXECABORT Transaction discarded because of previous errors.")
+	}
+	// 执行
+	cmdLines := client.GetTxQueue()
+	replies := make([]string, 0, len(cmdLines))
+	for _, cmdLine := range cmdLines {
+		reply := server.ExecWithoutLock(client, cmdLine)
+		if Reply.IsErrorReply(reply) {
+			break
+		}
+		replies = append(replies, string(reply.ToBytes()))
+	}
+	return Reply.ToArrayReply(replies...)
+}
+func execDiscard(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
+	if !client.IsTxState() {
+		return Reply.MakeErrReply("DISCARD without MULTI")
+	}
+	client.SetTxState(false)
+	client.ClearTxQueue()
+	client.DestoryWatch()
+	return Reply.MakeOkReply()
 }

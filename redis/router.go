@@ -57,3 +57,13 @@ func RegisterSysCommand(name string, sysExec SysExec, arity int) {
 		Arity:   arity,
 	}
 }
+
+/* ---- 事务相关的命令 ---- */
+
+var TxCmd = map[string]bool{
+	"multi":   true,
+	"exec":    true,
+	"discard": true,
+	"watch":   true,
+	"unwatch": true,
+}

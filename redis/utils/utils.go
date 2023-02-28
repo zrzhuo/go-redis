@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// ParseCmds 将一行输入解析为cmdLine，""中的内容为一个参数
 func ParseCmds(line []byte) ([][]byte, error) {
 	cmdLine, arg := make([][]byte, 0), make([]byte, 0)
 	num := 0
@@ -38,6 +39,15 @@ func ParseCmds(line []byte) ([][]byte, error) {
 	}
 	cmdLine = append(cmdLine, arg)
 	return cmdLine, nil
+}
+
+// CheckArgNum 检查参数个数是否满足要求
+func CheckArgNum(arity int, cmdLine _type.CmdLine) bool {
+	argNum := len(cmdLine)
+	if arity >= 0 {
+		return argNum == arity
+	}
+	return argNum >= -arity
 }
 
 func ToCmd(name string, args ...[]byte) _type.CmdLine {

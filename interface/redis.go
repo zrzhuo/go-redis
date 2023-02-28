@@ -2,15 +2,6 @@ package _interface
 
 import _type "go-redis/interface/type"
 
-type Reply interface {
-	ToBytes() []byte
-}
-
-type ErrorReply interface {
-	Error() string
-	ToBytes() []byte
-}
-
 type Client interface {
 	Write([]byte) (int, error)
 	Close() error
@@ -34,12 +25,19 @@ type Client interface {
 	ClearTxQueue()
 	AddTxError(err error)
 	GetTxError() []error
-
-	//GetWatching() map[string]uint32
+	InitWatch(dbNum int)
+	DestoryWatch()
+	SetWatchKey(dbIdx int, key string, version int)
+	GetWatchKeys() []map[string]int
 }
 
 type Server interface {
 	ExecWithLock(client Client, cmdLine _type.CmdLine) Reply
+	ExecWithoutLock(client Client, cmdLine _type.CmdLine) Reply
+
+	SetTxing(flag bool)
+	IsTxing() bool
+
 	CloseClient(client Client)
 	Close()
 }

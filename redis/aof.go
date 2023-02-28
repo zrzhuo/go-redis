@@ -192,7 +192,7 @@ func (pst *Persister) ReadAOF(size int64) {
 			}
 		}
 		// 执行命令
-		reply := pst.server.ExecWithLock(aofConn, cmd.Args)
+		reply := pst.server.ExecWithoutLock(aofConn, cmd.Args)
 		if Reply.IsErrorReply(reply) {
 			logger.Error("execute error: ", string(reply.ToBytes()))
 		}

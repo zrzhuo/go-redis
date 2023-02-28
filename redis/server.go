@@ -4,19 +4,20 @@ import (
 	"fmt"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
+	"go-redis/redis/utils"
 	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Server struct {
 	databases []*atomic.Value // 若干个redis数据库
 	persister *Persister      // AOF持久化
 	pubsub    *Pubsub         // pub/sub
-	lock      sync.Mutex      // 锁
+	txing     bool            // 正在执行事务
 }
 
 // MakeServer 读取配置，创建server
@@ -80,9 +81,11 @@ func (server *Server) ExecWithLock(client _interface.Client, cmdLine _type.CmdLi
 			reply = &Reply.UnknownErrReply{}
 		}
 	}()
-	//上锁
-	server.Lock()
-	defer server.Unlock()
+	// server正在执行事务，等待
+	for server.IsTxing() {
+		time.Sleep(1 * time.Millisecond)
+	}
+
 	cmd := strings.ToLower(string(cmdLine[0]))
 	args := _type.Args(cmdLine[1:])
 	// auth
@@ -93,15 +96,18 @@ func (server *Server) ExecWithLock(client _interface.Client, cmdLine _type.CmdLi
 		return Reply.MakeErrReply("NOAUTH Authentication required.")
 	}
 	// 事务处理
-	if client.IsTxState() && cmd != "exec" && cmd != "discard" {
-		return server.handleTX(client, cmdLine)
+	if client.IsTxState() {
+		if _, ok := TxCmd[cmd]; !ok { // 排除掉事务相关命令
+			return server.handleTX(client, cmdLine)
+		}
 	}
 	// 分发命令
-	sysCmd, ok := SysCmdRouter[cmd]
+	_, ok := SysCmdRouter[cmd]
 	if ok {
-		return sysCmd.SysExec(server, client, args) // 执行系统命令
+		return server.execSysCommand(client, cmdLine) // 执行系统命令
+	} else {
+		return server.execCommand(client, cmdLine) // 执行数据库命令
 	}
-	return server.execCommand(client, cmdLine) // 执行数据库命令
 }
 
 func (server *Server) ExecWithoutLock(client _interface.Client, cmdLine _type.CmdLine) (reply _interface.Reply) {
@@ -113,13 +119,26 @@ func (server *Server) ExecWithoutLock(client _interface.Client, cmdLine _type.Cm
 		}
 	}()
 	cmd := strings.ToLower(string(cmdLine[0]))
-	args := _type.Args(cmdLine[1:])
 	// 分发命令
-	sysCmd, ok := SysCmdRouter[cmd]
+	_, ok := SysCmdRouter[cmd]
 	if ok {
-		return sysCmd.SysExec(server, client, args) // 执行系统命令
+		return server.execSysCommand(client, cmdLine) // 执行系统命令
+	} else {
+		return server.execCommand(client, cmdLine) // 执行数据库命令
 	}
-	return server.execCommand(client, cmdLine) // 执行数据库命令
+}
+
+func (server *Server) execSysCommand(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
+	cmd := strings.ToLower(string(cmdLine[0]))
+	args := _type.Args(cmdLine[1:])
+	sysCmd, ok := SysCmdRouter[cmd]
+	if !ok {
+		return Reply.MakeErrReply("unknown command '" + cmd + "'") // 不存在该命令
+	}
+	if !utils.CheckArgNum(sysCmd.Arity, cmdLine) {
+		return Reply.MakeArgNumErrReply(cmd) // 参数个数不满足要求
+	}
+	return sysCmd.SysExec(server, client, args)
 }
 
 func (server *Server) execCommand(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
@@ -134,10 +153,11 @@ func (server *Server) execCommand(client _interface.Client, cmdLine _type.CmdLin
 
 func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
 	name := strings.ToLower(string(cmdLine[0]))
+	// system command
 	sysCmd, ok := SysCmdRouter[name]
 	if ok {
-		// 参数个数是否满足要求
-		if !checkArgNum(sysCmd.Arity, cmdLine) {
+		// 检查参数个数
+		if !utils.CheckArgNum(sysCmd.Arity, cmdLine) {
 			errReply := Reply.MakeArgNumErrReply(name)
 			client.AddTxError(errReply)
 			return errReply
@@ -145,9 +165,11 @@ func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) 
 		client.EnTxQueue(cmdLine)
 		return Reply.MakeQueuedReply()
 	}
+	// database command
 	cmd, ok := CmdRouter[name]
 	if ok {
-		if !checkArgNum(cmd.Arity, cmdLine) {
+		// 检查参数个数
+		if !utils.CheckArgNum(cmd.Arity, cmdLine) {
 			errReply := Reply.MakeArgNumErrReply(name)
 			client.AddTxError(errReply)
 			return errReply
@@ -155,9 +177,25 @@ func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) 
 		client.EnTxQueue(cmdLine)
 		return Reply.MakeQueuedReply()
 	}
+	// unknown command
 	errReply := Reply.MakeErrReply("unknown command '" + name + "'")
 	client.AddTxError(errReply)
 	return errReply
+}
+
+func (server *Server) isAuth(client _interface.Client) bool {
+	if Config.Requirepass == "" {
+		return true // 未设置密码
+	}
+	return client.GetPassword() == Config.Requirepass // 密码是否一致
+}
+
+func (server *Server) SetTxing(flag bool) {
+	server.txing = flag
+}
+
+func (server *Server) IsTxing() bool {
+	return server.txing
 }
 
 func (server *Server) CloseClient(client _interface.Client) {
@@ -178,17 +216,10 @@ func (server *Server) Close() {
 	logger.Info("redis server closed successfully.")
 }
 
-func (server *Server) isAuth(client _interface.Client) bool {
-	if Config.Requirepass == "" {
-		return true // 未设置密码
-	}
-	return client.GetPassword() == Config.Requirepass // 密码是否一致
+func (server *Server) GetDatabase(dbIdx int) *Database {
+	return server.databases[dbIdx].Load().(*Database)
 }
 
-func (server *Server) Lock() {
-	server.lock.Lock()
-}
-
-func (server *Server) Unlock() {
-	server.lock.Unlock()
+func (server *Server) DataBaseCount() int {
+	return len(server.databases)
 }

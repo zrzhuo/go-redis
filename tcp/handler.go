@@ -34,9 +34,9 @@ func (handler *Handler) Handle(conn net.Conn) {
 		return
 	}
 
-	// 包装为client
+	// 包装为client，并记录到clients
 	client := redis.NewClient(conn)
-	handler.clients.Store(client, struct{}{}) // 记录到clients
+	handler.clients.Store(client, struct{}{})
 
 	// handle
 	parser := resp.MakeParser(conn)

@@ -10,48 +10,19 @@ import (
 
 type Client struct {
 	conn       net.Conn
-	selectedDB int    // 选择的数据库id
-	password   string // 密码
-	wait       _sync.Wait
+	selectedDB int        // 选择的数据库id
+	password   string     // 密码
+	wait       _sync.Wait // 等待数据发送完毕
 
 	// 发布订阅
 	channels map[string]bool // 当前订阅的channel
-	locker   sync.Mutex      // 锁
+	subLock  sync.Mutex      // sub/unsub时的锁
 
 	// 事务
-	txState bool              // 事务状态
-	txQueue []_type.CmdLine   // 命令队列
-	txError []error           // 错误
-	txWatch map[string]uint32 // watch
-}
-
-/* ---- transaction ---- */
-
-func (client *Client) IsTxState() bool {
-	return client.txState
-}
-
-func (client *Client) SetTxState(flag bool) {
-	client.txState = flag
-}
-
-func (client *Client) EnTxQueue(cmdLine _type.CmdLine) {
-	client.txQueue = append(client.txQueue, cmdLine)
-}
-
-func (client *Client) GetTxQueue() []_type.CmdLine {
-	return client.txQueue
-}
-func (client *Client) ClearTxQueue() {
-	client.txQueue = nil
-}
-
-func (client *Client) AddTxError(err error) {
-	client.txError = append(client.txError, err)
-}
-
-func (client *Client) GetTxError() []error {
-	return client.txError
+	txState bool             // 事务状态
+	txQueue []_type.CmdLine  // 命令队列
+	txError []error          // 错误
+	txWatch []map[string]int // watch的key
 }
 
 // 连接池
@@ -64,10 +35,7 @@ var clientPool = sync.Pool{
 func NewClient(conn net.Conn) *Client {
 	client, ok := clientPool.Get().(*Client) // 尝试从连接池中获取
 	if !ok {
-		// 从连接池中获取失败，新建一个
-		return &Client{
-			conn: conn,
-		}
+		client = &Client{} // 从连接池中获取失败，新建一个
 	}
 	client.conn = conn
 	return client
@@ -90,6 +58,7 @@ func (client *Client) Write(b []byte) (int, error) {
 }
 
 func (client *Client) Close() error {
+	// 初始化该client，并放回连接池
 	client.wait.WaitWithTimeout(10 * time.Second) // 等待执行结束或超时
 	err := client.conn.Close()
 	if err != nil {
@@ -97,6 +66,11 @@ func (client *Client) Close() error {
 	}
 	client.selectedDB = 0
 	client.password = ""
+	client.channels = nil
+	client.txState = false
+	client.txQueue = nil
+	client.txError = nil
+	client.txWatch = nil
 	clientPool.Put(client) // 放回连接池
 	return nil
 }
@@ -131,8 +105,8 @@ func (client *Client) GetPassword() string {
 /* ---- publish/subscribe ---- */
 
 func (client *Client) Subscribe(channel string) {
-	client.locker.Lock() // 上锁
-	defer client.locker.Unlock()
+	client.subLock.Lock() // 上锁
+	defer client.subLock.Unlock()
 	if client.channels == nil {
 		client.channels = make(map[string]bool)
 	}
@@ -140,8 +114,8 @@ func (client *Client) Subscribe(channel string) {
 }
 
 func (client *Client) UnSubscribe(channel string) {
-	client.locker.Lock() // 上锁
-	defer client.locker.Unlock()
+	client.subLock.Lock() // 上锁
+	defer client.subLock.Unlock()
 	if client.channels == nil {
 		return
 	}
@@ -163,4 +137,56 @@ func (client *Client) GetChannels() []string {
 		i++
 	}
 	return channels
+}
+
+/* ---- transaction ---- */
+
+func (client *Client) IsTxState() bool {
+	return client.txState
+}
+
+func (client *Client) SetTxState(flag bool) {
+	client.txState = flag
+}
+
+func (client *Client) EnTxQueue(cmdLine _type.CmdLine) {
+	client.txQueue = append(client.txQueue, cmdLine)
+}
+
+func (client *Client) GetTxQueue() []_type.CmdLine {
+	return client.txQueue
+}
+func (client *Client) ClearTxQueue() {
+	client.txQueue = nil
+}
+
+func (client *Client) AddTxError(err error) {
+	client.txError = append(client.txError, err)
+}
+
+func (client *Client) GetTxError() []error {
+	return client.txError
+}
+
+func (client *Client) InitWatch(dbNum int) {
+	if client.txWatch != nil {
+		return
+	}
+	txWatch := make([]map[string]int, dbNum)
+	for i := 0; i < dbNum; i++ {
+		txWatch[i] = make(map[string]int)
+	}
+	client.txWatch = txWatch
+}
+
+func (client *Client) DestoryWatch() {
+	client.txWatch = nil
+}
+
+func (client *Client) SetWatchKey(dbIdx int, key string, version int) {
+	client.txWatch[dbIdx][key] = version
+}
+
+func (client *Client) GetWatchKeys() []map[string]int {
+	return client.txWatch
 }
