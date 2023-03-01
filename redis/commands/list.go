@@ -17,7 +17,7 @@ func init() {
 	redis.RegisterCommand("RPushX", execRPushX, utils.WriteFirst, -3, redis.ReadWrite)
 	redis.RegisterCommand("LPop", execLPop, utils.WriteFirst, 2, redis.ReadWrite)
 	redis.RegisterCommand("RPop", execRPop, utils.WriteFirst, 2, redis.ReadWrite)
-	redis.RegisterCommand("RPopLPush", execRPopLPush, utils.ReadTwo, 3, redis.ReadWrite)
+	redis.RegisterCommand("RPopLPush", execRPopLPush, utils.ReadFirstTwo, 3, redis.ReadWrite)
 	redis.RegisterCommand("LLen", execLLen, utils.ReadFirst, 2, redis.ReadOnly)
 	redis.RegisterCommand("LIndex", execLIndex, utils.ReadFirst, 3, redis.ReadOnly)
 	redis.RegisterCommand("LSet", execLSet, utils.WriteFirst, 4, redis.ReadWrite)

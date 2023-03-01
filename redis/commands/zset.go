@@ -11,20 +11,20 @@ import (
 
 func init() {
 	redis.RegisterCommand("ZAdd", execZAdd, utils.WriteFirst, -4, redis.ReadWrite)
+	redis.RegisterCommand("ZRem", execZRem, utils.WriteFirst, -3, redis.ReadWrite)
+	redis.RegisterCommand("ZRemRangeByScore", execZRemRangeByScore, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("ZRemRangeByRank", execZRemRangeByRank, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("ZCard", execZCard, utils.ReadFirst, 2, redis.ReadOnly)
 	redis.RegisterCommand("ZScore", execZScore, utils.ReadFirst, 3, redis.ReadOnly)
-	//RegisterCommand("ZIncrBy", execZIncrBy, writeFirstKey, undoZIncr, 4, flagWrite)
+	redis.RegisterCommand("ZCount", execZCount, utils.ReadFirst, 4, redis.ReadOnly)
 	redis.RegisterCommand("ZRank", execZRank, utils.ReadFirst, 3, redis.ReadOnly)
-	//RegisterCommand("ZCount", execZCount, readFirstKey, nil, 4, flagReadOnly)
-	//RegisterCommand("ZRevRank", execZRevRank, readFirstKey, nil, 3, flagReadOnly)
-	//RegisterCommand("ZCard", execZCard, readFirstKey, nil, 2, flagReadOnly)
-	//RegisterCommand("ZRange", execZRange, readFirstKey, nil, -4, flagReadOnly)
-	//RegisterCommand("ZRangeByScore", execZRangeByScore, readFirstKey, nil, -4, flagReadOnly)
-	//RegisterCommand("ZRevRange", execZRevRange, readFirstKey, nil, -4, flagReadOnly)
-	//RegisterCommand("ZRevRangeByScore", execZRevRangeByScore, readFirstKey, nil, -4, flagReadOnly)
-	//RegisterCommand("ZPopMin", execZPopMin, writeFirstKey, rollbackFirstKey, -2, flagWrite)
-	//RegisterCommand("ZRem", execZRem, writeFirstKey, undoZRem, -3, flagWrite)
-	//RegisterCommand("ZRemRangeByScore", execZRemRangeByScore, writeFirstKey, rollbackFirstKey, 4, flagWrite)
-	//RegisterCommand("ZRemRangeByRank", execZRemRangeByRank, writeFirstKey, rollbackFirstKey, 4, flagWrite)
+	redis.RegisterCommand("ZRevRank", execZRevRank, utils.ReadFirst, 3, redis.ReadOnly)
+	redis.RegisterCommand("ZRange", execZRange, utils.ReadFirst, -4, redis.ReadOnly)
+	redis.RegisterCommand("ZRevRange", execZRevRange, utils.ReadFirst, -4, redis.ReadOnly)
+	redis.RegisterCommand("ZRangeByScore", execZRangeByScore, utils.ReadFirst, -4, redis.ReadOnly)
+	redis.RegisterCommand("ZRevRangeByScore", execZRevRangeByScore, utils.ReadFirst, -4, redis.ReadOnly)
+	redis.RegisterCommand("ZPopMin", execZPopMin, utils.WriteFirst, -2, redis.ReadWrite)
+	redis.RegisterCommand("ZIncrBy", execZIncrBy, utils.WriteFirst, 4, redis.ReadWrite)
 }
 
 func execZAdd(db *redis.Database, args _type.Args) _interface.Reply {
@@ -80,4 +80,42 @@ func execZScore(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	value := strconv.FormatFloat(score, 'f', -1, 64)
 	return Reply.MakeBulkReply([]byte(value))
+}
+
+func execZIncrBy(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+
+func execZCard(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZRange(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZCount(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZRevRange(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZRevRank(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZPopMin(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZRangeByScore(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZRem(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZRemRangeByRank(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZRemRangeByScore(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execZRevRangeByScore(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
 }

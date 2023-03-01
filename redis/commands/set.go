@@ -1,6 +1,7 @@
 package commands
 
 import (
+	Set "go-redis/datastruct/set"
 	_interface "go-redis/interface"
 	_type "go-redis/interface/type"
 	"go-redis/redis"
@@ -18,79 +19,11 @@ func init() {
 	redis.RegisterCommand("SIsMember", execSIsMember, utils.ReadFirst, 3, redis.ReadOnly)
 	redis.RegisterCommand("SMembers", execSMembers, utils.ReadFirst, 2, redis.ReadOnly)
 	redis.RegisterCommand("SInter", execSInter, utils.ReadAll, -2, redis.ReadOnly)
-	redis.RegisterCommand("SInterStore", execSInterStore, utils.WriteFirstReadOther, -3, redis.ReadWrite)
-	//RegisterCommand("SUnion", execSUnion, prepareSetCalculate, nil, -2, flagReadOnly)
-	//RegisterCommand("SUnionStore", execSUnionStore, prepareSetCalculateStore, rollbackFirstKey, -3, flagWrite)
-	//RegisterCommand("SDiff", execSDiff, prepareSetCalculate, nil, -2, flagReadOnly)
-	//RegisterCommand("SDiffStore", execSDiffStore, prepareSetCalculateStore, rollbackFirstKey, -3, flagWrite)
-}
-
-func execSInter(db *redis.Database, args _type.Args) _interface.Reply {
-	num := len(args)
-	keys := make([]string, num)
-	for i, arg := range args {
-		keys[i] = string(arg)
-	}
-	set, errReply := db.GetSet(keys[0])
-	if errReply != nil {
-		return errReply
-	}
-	if set == nil {
-		return reply.MakeEmptyArrayReply()
-	}
-	for i := 1; i < num; i++ {
-		anoSet, errReply := db.GetSet(keys[i])
-		if errReply != nil {
-			return errReply
-		}
-		if anoSet == nil {
-			return reply.MakeEmptyArrayReply()
-		}
-		set = set.Inter(anoSet)
-		if set.Len() == 0 {
-			return reply.MakeEmptyArrayReply()
-		}
-	}
-	return reply.ToArrayReply(set.Members()...)
-}
-
-func execSInterStore(db *redis.Database, args _type.Args) _interface.Reply {
-	dest := string(args[0])
-	num := len(args) - 1
-	keys := make([]string, num)
-	for i := 0; i < num; i++ {
-		keys[i] = string(args[i+1])
-	}
-	set, errReply := db.GetSet(keys[0])
-	if errReply != nil {
-		return errReply
-	}
-	if set == nil {
-		db.Remove(dest) // 清掉dest
-		db.ToAOF(utils.StringToCmd("Del", dest))
-		return reply.MakeEmptyArrayReply()
-	}
-	for i := 1; i < num; i++ {
-		anoSet, errReply := db.GetSet(keys[i])
-		if errReply != nil {
-			return errReply
-		}
-		if anoSet == nil {
-			db.Remove(dest) // 清掉dest
-			db.ToAOF(utils.StringToCmd("Del", dest))
-			return reply.MakeEmptyArrayReply()
-		}
-		set = set.Inter(anoSet)
-		if set.Len() == 0 {
-			db.Remove(dest) // 清掉dest
-			db.ToAOF(utils.StringToCmd("Del", dest))
-			return reply.MakeEmptyArrayReply()
-		}
-	}
-	db.Remove(dest) // 清掉dest
-	db.Put(dest, _type.NewEntity(set))
-	db.ToAOF(utils.StringToCmd("SAdd", set.Members()...))
-	return reply.ToArrayReply(set.Members()...)
+	redis.RegisterCommand("SUnion", execSUnion, utils.ReadAll, -2, redis.ReadOnly)
+	redis.RegisterCommand("SDiff", execSDiff, utils.ReadAll, -2, redis.ReadOnly)
+	redis.RegisterCommand("SInterStore", execSInterStore, utils.WriteFirstReadOthers, -3, redis.ReadWrite)
+	redis.RegisterCommand("SUnionStore", execSUnionStore, utils.WriteFirstReadOthers, -3, redis.ReadWrite)
+	redis.RegisterCommand("SDiffStore", execSDiffStore, utils.WriteFirstReadOthers, -3, redis.ReadWrite)
 }
 
 func execSAdd(db *redis.Database, args _type.Args) _interface.Reply {
@@ -163,7 +96,7 @@ func execSPop(db *redis.Database, args _type.Args) _interface.Reply {
 			set.Remove(member)
 			db.ToAOF(utils.ToCmd("SRem", args[0], []byte(member)))
 		}
-		return reply.ToArrayReply(members...)
+		return reply.StringToArrayReply(members...)
 	}
 }
 
@@ -193,7 +126,7 @@ func execSRandMember(db *redis.Database, args _type.Args) _interface.Reply {
 			return reply.MakeErrReply("value is not an integer or out of range")
 		}
 		members := set.RandomDistinctMembers(int(count))
-		return reply.ToArrayReply(members...)
+		return reply.StringToArrayReply(members...)
 	}
 }
 
@@ -239,4 +172,155 @@ func execSMembers(db *redis.Database, args _type.Args) _interface.Reply {
 		result[i] = []byte(members[i])
 	}
 	return reply.MakeArrayReply(result)
+}
+
+func execSInter(db *redis.Database, args _type.Args) _interface.Reply {
+	set := Set.MakeSimpleSet[string]()
+	for _, arg := range args {
+		anoSet, errReply := db.GetSet(string(arg))
+		if errReply != nil {
+			return errReply
+		}
+		if anoSet == nil {
+			return reply.MakeEmptyArrayReply()
+		}
+		set = set.Inter(anoSet)
+		if set.Len() == 0 {
+			return reply.MakeEmptyArrayReply()
+		}
+	}
+	return reply.StringToArrayReply(set.Members()...)
+}
+
+func execSUnion(db *redis.Database, args _type.Args) _interface.Reply {
+	set := Set.MakeSimpleSet[string]()
+	for _, arg := range args {
+		anoSet, errReply := db.GetSet(string(arg))
+		if errReply != nil {
+			return errReply
+		}
+		if anoSet == nil {
+			continue
+		}
+		set = set.Union(anoSet)
+	}
+	if set.Len() == 0 {
+		return reply.MakeEmptyArrayReply()
+	}
+	return reply.StringToArrayReply(set.Members()...)
+}
+
+func execSDiff(db *redis.Database, args _type.Args) _interface.Reply {
+	set, errReply := db.GetSet(string(args[0]))
+	if errReply != nil {
+		return errReply
+	}
+	if set == nil {
+		return reply.MakeEmptyArrayReply()
+	}
+	// 求其余set的并集，然后在求差集，可提高效率
+	unionSet := Set.MakeSimpleSet[string]()
+	for _, arg := range args[1:] {
+		anoSet, errReply := db.GetSet(string(arg))
+		if errReply != nil {
+			return errReply
+		}
+		if anoSet == nil {
+			continue
+		}
+		unionSet = unionSet.Union(anoSet)
+	}
+	result := set.Diff(unionSet)
+	if result.Len() == 0 {
+		return reply.MakeEmptyArrayReply()
+	}
+	return reply.StringToArrayReply(result.Members()...)
+}
+
+func execSInterStore(db *redis.Database, args _type.Args) _interface.Reply {
+	dest := string(args[0])
+	set := Set.MakeSimpleSet[string]()
+	for _, arg := range args[1:] {
+		anoSet, errReply := db.GetSet(string(arg))
+		if errReply != nil {
+			return errReply
+		}
+		if anoSet == nil {
+			db.Remove(dest) // 清掉dest
+			db.ToAOF(utils.StringToCmd("Del", dest))
+			return reply.MakeIntReply(0)
+		}
+		set = set.Inter(anoSet)
+		if set.Len() == 0 {
+			db.Remove(dest) // 清掉dest
+			db.ToAOF(utils.StringToCmd("Del", dest))
+			return reply.MakeIntReply(0)
+		}
+	}
+	db.Remove(dest) // 清掉dest
+	db.ToAOF(utils.StringToCmd("Del", dest))
+	db.Put(dest, _type.NewEntity(set))
+	db.ToAOF(utils.StringToCmd("SAdd", set.Members()...))
+	return reply.MakeIntReply(int64(set.Len()))
+}
+
+func execSUnionStore(db *redis.Database, args _type.Args) _interface.Reply {
+	dest := string(args[0])
+	set := Set.MakeSimpleSet[string]()
+	for _, arg := range args[1:] {
+		anoSet, errReply := db.GetSet(string(arg))
+		if errReply != nil {
+			return errReply
+		}
+		if anoSet == nil {
+			continue
+		}
+		set = set.Union(anoSet)
+	}
+	if set.Len() == 0 {
+		db.Remove(dest)
+		db.ToAOF(utils.StringToCmd("Del", dest))
+		return reply.MakeIntReply(0)
+	}
+	db.Remove(dest)
+	db.ToAOF(utils.StringToCmd("Del", dest))
+	db.Put(dest, _type.NewEntity(set))
+	db.ToAOF(utils.StringToCmd("SAdd", set.Members()...))
+	return reply.MakeIntReply(int64(set.Len()))
+}
+
+func execSDiffStore(db *redis.Database, args _type.Args) _interface.Reply {
+	dest := string(args[0])
+	set, errReply := db.GetSet(string(args[1]))
+	if errReply != nil {
+		return errReply
+	}
+	if set == nil {
+		db.Remove(dest) // 清掉dest
+		db.ToAOF(utils.StringToCmd("Del", dest))
+		return reply.MakeIntReply(0)
+	}
+	// 求其余set的并集，然后在求差集，可提高效率
+	unionSet := Set.MakeSimpleSet[string]()
+	for _, arg := range args[2:] {
+		anoSet, errReply := db.GetSet(string(arg))
+		if errReply != nil {
+			return errReply
+		}
+		if anoSet == nil {
+			continue
+		}
+		unionSet = unionSet.Union(anoSet)
+	}
+	set = set.Diff(unionSet)
+	if set.Len() == 0 {
+		db.Remove(dest) // 清掉dest
+		db.ToAOF(utils.StringToCmd("Del", dest))
+		return reply.MakeIntReply(0)
+	}
+	db.Remove(dest) // 清掉dest
+	db.ToAOF(utils.StringToCmd("Del", dest))
+	db.Put(dest, _type.NewEntity(set))
+	db.ToAOF(utils.StringToCmd("SAdd", set.Members()...))
+	return reply.MakeIntReply(int64(set.Len()))
 }

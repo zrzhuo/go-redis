@@ -5,37 +5,58 @@ import (
 	_type "go-redis/interface/type"
 	"go-redis/redis"
 	"go-redis/redis/utils"
-	reply2 "go-redis/resp/reply"
+	Reply "go-redis/resp/reply"
+	"strconv"
 )
 
 func init() {
-	redis.RegisterCommand("HSet", execHSet, utils.WriteFirst, 4, redis.ReadWrite)
-	//RegisterCommand("HSetNX", execHSetNX, writeFirstKey, undoHSet, 4, flagWrite)
+	redis.RegisterCommand("HSet", execHSet, utils.WriteFirst, -4, redis.ReadWrite)
+	redis.RegisterCommand("HSetNX", execHSetNX, utils.WriteFirst, 4, redis.ReadWrite)
 	redis.RegisterCommand("HGet", execHGet, utils.ReadFirst, 3, redis.ReadOnly)
-	//RegisterCommand("HExists", execHExists, readFirstKey, nil, 3, flagReadOnly)
-	//RegisterCommand("HDel", execHDel, writeFirstKey, undoHDel, -3, flagWrite)
-	//RegisterCommand("HLen", execHLen, readFirstKey, nil, 2, flagReadOnly)
-	//RegisterCommand("HStrlen", execHStrlen, readFirstKey, nil, 3, flagReadOnly)
-	//RegisterCommand("HMSet", execHMSet, writeFirstKey, undoHMSet, -4, flagWrite)
-	//RegisterCommand("HMGet", execHMGet, readFirstKey, nil, -3, flagReadOnly)
-	//RegisterCommand("HGet", execHGet, readFirstKey, nil, -3, flagReadOnly)
-	//RegisterCommand("HKeys", execHKeys, readFirstKey, nil, 2, flagReadOnly)
-	//RegisterCommand("HVals", execHVals, readFirstKey, nil, 2, flagReadOnly)
-	//RegisterCommand("HGetAll", execHGetAll, readFirstKey, nil, 2, flagReadOnly)
-	//RegisterCommand("HIncrBy", execHIncrBy, writeFirstKey, undoHIncr, 4, flagWrite)
-	//RegisterCommand("HIncrByFloat", execHIncrByFloat, writeFirstKey, undoHIncr, 4, flagWrite)
-	//RegisterCommand("HRandField", execHRandField, readFirstKey, nil, -2, flagReadOnly)
+	redis.RegisterCommand("HMGet", execHMGet, utils.ReadFirst, -3, redis.ReadOnly)
+	redis.RegisterCommand("HKeys", execHKeys, utils.ReadFirst, 2, redis.ReadOnly)
+	redis.RegisterCommand("HVals", execHVals, utils.ReadFirst, 2, redis.ReadOnly)
+	redis.RegisterCommand("HGetAll", execHGetAll, utils.ReadFirst, 2, redis.ReadOnly)
+	redis.RegisterCommand("HDel", execHDel, utils.WriteFirst, -3, redis.ReadWrite)
+	redis.RegisterCommand("HLen", execHLen, utils.ReadFirst, 2, redis.ReadOnly)
+	redis.RegisterCommand("HExists", execHExists, utils.ReadFirst, 3, redis.ReadOnly)
+	redis.RegisterCommand("HStrlen", execHStrlen, utils.ReadFirst, 3, redis.ReadOnly)
+	redis.RegisterCommand("HIncrBy", execHIncrBy, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("HIncrByFloat", execHIncrByFloat, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("HRandField", execHRandField, utils.ReadFirst, -2, redis.ReadOnly)
 }
 
 func execHSet(db *redis.Database, args _type.Args) _interface.Reply {
+	length := len(args)
+	if length%2 == 0 {
+		return Reply.MakeArgNumErrReply("HSet")
+	}
+	dict, _, errReply := db.GetOrInitDict(string(args[0]))
+	if errReply != nil {
+		return errReply
+	}
+	count := 0
+	for i := 0; i < length/2; i++ {
+		field, value := string(args[2*i+1]), args[2*i+2]
+		count += dict.Put(field, value)
+	}
+	if count > 0 {
+		db.ToAOF(utils.ToCmd("HSet", args...))
+	}
+	return Reply.MakeIntReply(int64(count))
+}
+
+func execHSetNX(db *redis.Database, args _type.Args) _interface.Reply {
 	key, field, value := string(args[0]), string(args[1]), args[2]
 	dict, _, errReply := db.GetOrInitDict(key)
 	if errReply != nil {
 		return errReply
 	}
-	result := dict.Put(field, value)
-	//db.addAof(utils.ToCmd("hset", args...))
-	return reply2.MakeIntReply(int64(result))
+	result := dict.PutIfAbsent(field, value)
+	if result > 0 {
+		db.ToAOF(utils.ToCmd("HSetNX", args...))
+	}
+	return Reply.MakeIntReply(int64(result))
 }
 
 func execHGet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -45,11 +66,243 @@ func execHGet(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return reply2.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
 	value, existed := dict.Get(field)
 	if !existed {
-		return reply2.MakeNullBulkReply()
+		return Reply.MakeNullBulkReply()
 	}
-	return reply2.MakeBulkReply(value)
+	return Reply.MakeBulkReply(value)
+}
+
+func execHMGet(db *redis.Database, args _type.Args) _interface.Reply {
+	vals := make([][]byte, len(args)-1)
+	dict, errReply := db.GetDict(string(args[0]))
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		return Reply.MakeArrayReply(vals)
+	}
+	for i, arg := range args[1:] {
+		val, existed := dict.Get(string(arg))
+		if !existed {
+			continue
+		}
+		vals[i] = val
+	}
+	return Reply.MakeArrayReply(vals)
+}
+
+func execHKeys(db *redis.Database, args _type.Args) _interface.Reply {
+	dict, errReply := db.GetDict(string(args[0]))
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		return Reply.MakeEmptyArrayReply()
+	}
+	fields := dict.Keys()
+	return Reply.StringToArrayReply(fields...)
+}
+
+func execHVals(db *redis.Database, args _type.Args) _interface.Reply {
+	dict, errReply := db.GetDict(string(args[0]))
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		return Reply.MakeEmptyArrayReply()
+	}
+	values := dict.Values()
+	return Reply.MakeArrayReply(values)
+}
+
+func execHGetAll(db *redis.Database, args _type.Args) _interface.Reply {
+	dict, errReply := db.GetDict(string(args[0]))
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		return Reply.MakeEmptyArrayReply()
+	}
+	length := dict.Len()
+	result := make([][]byte, 2*length)
+	i := 0
+	consumer := func(key string, val []byte) bool {
+		result[2*i] = []byte(key)
+		result[2*i+1] = val
+		i++
+		return true
+	}
+	dict.ForEach(consumer)
+	return Reply.MakeArrayReply(result)
+}
+
+func execHDel(db *redis.Database, args _type.Args) _interface.Reply {
+	key := string(args[0])
+	dict, errReply := db.GetDict(key)
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		return Reply.MakeIntReply(0)
+	}
+	count := 0
+	for _, arg := range args[1:] {
+		count += dict.Remove(string(arg))
+	}
+	if dict.Len() == 0 {
+		db.Remove(key)
+	}
+	if count > 0 {
+		db.ToAOF(utils.ToCmd("HDel", args...))
+	}
+	return Reply.MakeIntReply(int64(count))
+}
+
+func execHLen(db *redis.Database, args _type.Args) _interface.Reply {
+	dict, errReply := db.GetDict(string(args[0]))
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		return Reply.MakeIntReply(0)
+	}
+	return Reply.MakeIntReply(int64(dict.Len()))
+}
+
+func execHExists(db *redis.Database, args _type.Args) _interface.Reply {
+	key, field := string(args[0]), string(args[1])
+	dict, errReply := db.GetDict(key)
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		return Reply.MakeIntReply(0)
+	}
+	existed := dict.ContainKey(field)
+	if !existed {
+		return Reply.MakeIntReply(0)
+	}
+	return Reply.MakeIntReply(1)
+}
+
+func execHStrlen(db *redis.Database, args _type.Args) _interface.Reply {
+	key, field := string(args[0]), string(args[1])
+	dict, errReply := db.GetDict(key)
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		return Reply.MakeIntReply(0)
+	}
+	val, existed := dict.Get(field)
+	if !existed {
+		return Reply.MakeIntReply(0)
+	}
+	return Reply.MakeIntReply(int64(len(val)))
+}
+
+func execHRandField(db *redis.Database, args _type.Args) _interface.Reply {
+	length := len(args)
+	if length > 3 {
+		return Reply.MakeSyntaxErrReply()
+	}
+	dict, errReply := db.GetDict(string(args[0]))
+	if errReply != nil {
+		return errReply
+	}
+	if dict == nil {
+		switch length {
+		case 1:
+			return Reply.MakeNullBulkReply()
+		case 2:
+			return Reply.MakeEmptyArrayReply()
+		case 3:
+			return Reply.MakeEmptyArrayReply()
+		}
+	}
+	switch length {
+	case 1:
+		keys := dict.RandomDistinctKeys(1)
+		if len(keys) == 0 {
+			return Reply.MakeNullBulkReply()
+		}
+		return Reply.MakeBulkReply([]byte(keys[0]))
+	case 2:
+		number, err := strconv.ParseInt(string(args[1]), 10, 64)
+		if err != nil {
+			return Reply.MakeErrReply("value is not an integer or out of range")
+		}
+		count := int(number)
+		if count >= 0 {
+			fields := dict.RandomDistinctKeys(count)
+			return Reply.StringToArrayReply(fields...)
+		} else {
+			fields := dict.RandomKeys(-count)
+			return Reply.StringToArrayReply(fields...)
+		}
+	case 3:
+		number, err := strconv.ParseInt(string(args[1]), 10, 64)
+		if err != nil {
+			return Reply.MakeErrReply("value is not an integer or out of range")
+		}
+		count := int(number)
+		if string(args[2]) != "withvalues" {
+			return Reply.MakeSyntaxErrReply()
+		}
+		if count >= 0 {
+			fields := dict.RandomDistinctKeys(count)
+			result := make([][]byte, 2*len(fields))
+			for i, field := range fields {
+				value, _ := dict.Get(field)
+				result[2*i] = []byte(field)
+				result[2*i+1] = value
+			}
+			return Reply.MakeArrayReply(result)
+		} else {
+			result := make([][]byte, -2*count)
+			fields := dict.RandomKeys(-count)
+			for i, field := range fields {
+				value, _ := dict.Get(field)
+				result[2*i] = []byte(field)
+				result[2*i+1] = value
+			}
+			return Reply.MakeArrayReply(result)
+		}
+	default:
+		return Reply.MakeSyntaxErrReply()
+	}
+}
+
+func execHIncrBy(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+	//key, field := string(args[0]), string(args[1])
+	//delta, err := strconv.ParseInt(string(args[2]), 10, 64)
+	//if err != nil {
+	//	return Reply.MakeErrReply("value is not an integer or out of range")
+	//}
+	//dict, _, errReply := db.GetOrInitDict(key)
+	//if errReply != nil {
+	//	return errReply
+	//}
+	//value, existed := dict.Get(field)
+	//if !existed {
+	//	dict.Put(field, args[2]) // 相当于0+delta
+	//	db.ToAOF(utils.ToCmd("HIncrBy", args...))
+	//	return Reply.MakeIntReply(delta)
+	//}
+	//oldVal, err := strconv.ParseInt(string(value), 10, 64)
+	//if err != nil {
+	//	return Reply.MakeErrReply("hash value is not an integer")
+	//}
+	//newVal := oldVal + delta
+	//dict.Put(field, []byte(strconv.FormatInt(newVal, 10)))
+	//db.ToAOF(utils.ToCmd("HIncrBy", args...))
+	//return Reply.MakeIntReply(newVal)
+}
+
+func execHIncrByFloat(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
 }

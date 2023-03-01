@@ -30,7 +30,8 @@ func (parser *Parser) ParseFile() <-chan *Payload {
 }
 
 func (parser *Parser) ParseCLI() <-chan *Payload {
-	go parser.parseCmdLines()
+	go parser.parseRESP() // 客户端使用RESP时，如redis-cli
+	//go parser.parseNoRESP() // 客户端不使用RESP时，如telnet
 	return parser.ch
 }
 
@@ -92,11 +93,16 @@ func (parser *Parser) parseRESP() {
 			// 错误信息(Error)
 			reply := Reply.MakeErrReply(string(line[1:]))
 			parser.ch <- &Payload{Data: reply}
+		default:
+			args := bytes.Split(line, []byte{' '})
+			reply := Reply.MakeArrayReply(args)
+			parser.ch <- &Payload{Data: reply}
 		}
+
 	}
 }
 
-func (parser *Parser) parseCmdLines() {
+func (parser *Parser) parseNoRESP() {
 	// 异常处理
 	defer func() {
 		if err := recover(); err != nil {
@@ -112,6 +118,7 @@ func (parser *Parser) parseCmdLines() {
 			return // 读取出现错误，终止
 		}
 		line = bytes.TrimSpace(line) // 去除两端空白
+		println(string(line))
 		if len(line) == 0 {
 			continue // 忽略空行
 		}

@@ -27,9 +27,9 @@ func init() {
 	redis.RegisterCommand("PExpireTime", execPExpireTime, utils.ReadFirst, 2, redis.ReadOnly)
 	redis.RegisterCommand("Persist", execPersist, utils.WriteFirst, 2, redis.ReadWrite)
 	redis.RegisterCommand("Type", execType, utils.ReadFirst, 2, redis.ReadOnly)
-	//RegisterCommand("Rename", execRename, prepareRename, undoRename, 3, flagReadOnly)
-	//RegisterCommand("RenameNx", execRenameNx, prepareRename, undoRename, 3, flagReadOnly)
-	//RegisterCommand("Keys", execKeys, noPrepare, nil, 2, flagReadOnly)
+	redis.RegisterCommand("Rename", execRename, utils.WriteFirstReadSecond, 3, redis.ReadOnly)
+	redis.RegisterCommand("RenameNx", execRenameNx, utils.WriteFirstReadSecond, 3, redis.ReadOnly)
+	redis.RegisterCommand("Keys", execKeys, utils.WriteNilReadNil, 2, redis.ReadOnly)
 }
 
 func execExists(db *redis.Database, args _type.Args) _interface.Reply {
@@ -208,4 +208,34 @@ func execType(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.MakeStatusReply("zset")
 	}
 	return Reply.MakeUnknownErrReply()
+}
+
+func execRename(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+
+func execRenameNx(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+	//src, dest := string(args[0]), string(args[1])
+	//entity, existed := db.Get(src)
+	//if !existed {
+	//	return Reply.MakeErrReply("no such key") // 键不存在
+	//}
+	//_, existed = db.Get(dest)
+	//if existed {
+	//	return Reply.MakeIntReply(0) // 新键已存在
+	//}
+	//db.Remove(dest)
+	//db.Put(dest, entity)
+	//expireTime, hasTTL := db.GetExpireTime(src)
+	//if hasTTL {
+	//	db.SetExpire(dest, expireTime)
+	//}
+	//db.Remove(src)
+	//db.ToAOF(utils.ToCmd("RenameNX", args...))
+	//return Reply.MakeIntReply(1)
+}
+
+func execKeys(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
 }

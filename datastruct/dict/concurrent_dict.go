@@ -94,6 +94,16 @@ func (dict *ConcurrentDict[K, V]) Len() int {
 	return int(atomic.LoadInt32(&dict.length))
 }
 
+func (dict *ConcurrentDict[K, V]) ContainKey(key K) bool {
+	checkNilDict(dict)
+	s := dict.computeShard(key)
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	_, existed := s.m[key]
+	return existed
+}
+
 func (dict *ConcurrentDict[K, V]) Get(key K) (val V, existed bool) {
 	checkNilDict(dict)
 	s := dict.computeShard(key)
@@ -151,8 +161,8 @@ func (dict *ConcurrentDict[K, V]) Remove(key K) (result int) {
 	s := dict.computeShard(key)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
-	if _, ok := s.m[key]; ok {
+	_, existed := s.m[key]
+	if existed {
 		delete(s.m, key)
 		atomic.AddInt32(&dict.length, -1)
 		return 1
@@ -174,6 +184,22 @@ func (dict *ConcurrentDict[K, V]) Keys() []K {
 		return true
 	})
 	return keys
+}
+
+func (dict *ConcurrentDict[K, V]) Values() []V {
+	checkNilDict(dict)
+	vals := make([]V, dict.Len())
+	i := 0
+	dict.ForEach(func(key K, val V) bool {
+		if i < len(vals) {
+			vals[i] = val
+			i++
+		} else {
+			vals = append(vals, val)
+		}
+		return true
+	})
+	return vals
 }
 
 func (dict *ConcurrentDict[K, V]) RandomKeys(num int) []K {
@@ -237,8 +263,8 @@ func (dict *ConcurrentDict[K, V]) ForEach(consumer Consumer[K, V]) {
 		// 使用匿名函数是为了 s.mutex.RUnlock() 正常执行
 		func() {
 			defer s.mutex.RUnlock()
-			for key, value := range s.m {
-				continues := consumer(key, value)
+			for key, val := range s.m {
+				continues := consumer(key, val)
 				if !continues {
 					return
 				}

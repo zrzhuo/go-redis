@@ -216,7 +216,7 @@ func (pst *Persister) ReWrite() error {
 	// 将临时server的数据写入新aof文件
 	for i := 0; i < len(tempServer.databases); i++ {
 		// select
-		reply := Reply.ToArrayReply("SELECT", strconv.Itoa(i))
+		reply := Reply.StringToArrayReply("SELECT", strconv.Itoa(i))
 		_, err = newFile.Write(reply.ToBytes())
 		if err != nil {
 			return err
@@ -288,7 +288,7 @@ func (pst *Persister) postReWrite(newFile *os.File, oldSize int64, oldIdx int) {
 		return
 	}
 	// select之前的db
-	reply := Reply.ToArrayReply("select", strconv.Itoa(oldIdx))
+	reply := Reply.StringToArrayReply("select", strconv.Itoa(oldIdx))
 	_, err = newFile.Write(reply.ToBytes())
 	if err != nil {
 		logger.Error("rewrite AOF file failed: " + err.Error())
@@ -301,7 +301,7 @@ func (pst *Persister) postReWrite(newFile *os.File, oldSize int64, oldIdx int) {
 		return
 	}
 	// select现在的db
-	reply = Reply.ToArrayReply("select", strconv.Itoa(pst.dbIdx))
+	reply = Reply.StringToArrayReply("select", strconv.Itoa(pst.dbIdx))
 	_, err = newFile.Write(reply.ToBytes())
 	if err != nil {
 		logger.Error("rewrite AOF file failed: " + err.Error())

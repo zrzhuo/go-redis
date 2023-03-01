@@ -39,7 +39,7 @@ func MakeArrayReply(args [][]byte) *ArrayReply {
 	}
 }
 
-func ToArrayReply(lines ...string) *ArrayReply {
+func StringToArrayReply(lines ...string) *ArrayReply {
 	args := make([][]byte, len(lines))
 	for i, line := range lines {
 		args[i] = []byte(line)

@@ -41,7 +41,7 @@ func (ps *Pubsub) Subscribe(client _interface.Client, channels []string) _interf
 			continue
 		}
 		subscribers.Add(client)
-		reply := Reply.ToArrayReply("subscribe", channel)
+		reply := Reply.StringToArrayReply("subscribe", channel)
 		_, _ = client.Write(reply.ToBytes())
 	}
 	return Reply.MakeNoReply()
@@ -53,7 +53,7 @@ func (ps *Pubsub) UnSubscribe(client _interface.Client, channels []string) _inte
 	defer ps.locker.UnLocks(channels...)
 	//
 	if len(channels) == 0 {
-		reply := Reply.ToArrayReply("unsubscribe", "-1", "0")
+		reply := Reply.StringToArrayReply("unsubscribe", "-1", "0")
 		_, _ = client.Write(reply.ToBytes())
 	}
 	// unsubscribe
@@ -71,7 +71,7 @@ func (ps *Pubsub) UnSubscribe(client _interface.Client, channels []string) _inte
 		if subscribers.Len() == 0 {
 			ps.table.Remove(channel) // 无任何订阅者，移除该channel
 		}
-		reply := Reply.ToArrayReply("unsubscribe", channel, strconv.Itoa(client.ChannelsCount()))
+		reply := Reply.StringToArrayReply("unsubscribe", channel, strconv.Itoa(client.ChannelsCount()))
 		_, _ = client.Write(reply.ToBytes())
 	}
 	return Reply.MakeNoReply()
@@ -86,7 +86,7 @@ func (ps *Pubsub) Publish(client _interface.Client, channel string, message []by
 		return Reply.MakeIntReply(0)
 	}
 	respFunc := func(i int, c _interface.Client) bool {
-		reply := Reply.ToArrayReply("message", channel, string(message))
+		reply := Reply.StringToArrayReply("message", channel, string(message))
 		_, _ = c.Write(reply.ToBytes())
 		return true
 	}

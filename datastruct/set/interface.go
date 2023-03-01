@@ -9,9 +9,9 @@ type Set[T comparable] interface {
 	RandomMembers(num int) []T         // 随机返回指定数量的member，且member可以重复
 	RandomDistinctMembers(num int) []T // 随机返回指定数量的member，且member不可以重复
 	ForEach(consumer Consumer[T])
-	Inter(ano Set[T]) Set[T] // 求交集
-	Diff(ano Set[T]) Set[T]  // 求差集
-	Union(ano Set[T]) Set[T] // 求并集
+	Inter(ano Set[T]) Set[T] // 求交集，时间复杂度O(mn)
+	Diff(ano Set[T]) Set[T]  // 求差集，时间复杂度O(mn)
+	Union(ano Set[T]) Set[T] // 求并集，时间复杂度O(m+n)
 }
 
 type Consumer[T comparable] func(member T) bool

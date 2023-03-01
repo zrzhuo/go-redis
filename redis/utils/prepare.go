@@ -2,14 +2,12 @@ package utils
 
 import _type "go-redis/interface/type"
 
-/*----- keysFind: func(args _type.Args) ([]string, []string) -----*/
-
 func ReadFirst(args _type.Args) ([]string, []string) {
 	key := string(args[0])
 	return nil, []string{key}
 }
 
-func ReadTwo(args _type.Args) ([]string, []string) {
+func ReadFirstTwo(args _type.Args) ([]string, []string) {
 	key1, key2 := string(args[0]), string(args[1])
 	return []string{key1, key2}, nil
 }
@@ -42,11 +40,21 @@ func WriteEven(args _type.Args) ([]string, []string) {
 	return wKeys, nil
 }
 
-func WriteFirstReadOther(args _type.Args) ([]string, []string) {
+func WriteFirstReadSecond(args _type.Args) ([]string, []string) {
+	wKeys := []string{string(args[0])}
+	rKeys := []string{string(args[1])}
+	return wKeys, rKeys
+}
+
+func WriteFirstReadOthers(args _type.Args) ([]string, []string) {
 	wKeys := []string{string(args[0])}
 	rKeys := make([]string, len(args)-1)
 	for i := 0; i < len(args)-1; i++ {
 		rKeys[i] = string(args[i+1])
 	}
 	return wKeys, rKeys
+}
+
+func WriteNilReadNil(args _type.Args) ([]string, []string) {
+	return nil, nil
 }

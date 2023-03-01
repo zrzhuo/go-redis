@@ -109,7 +109,7 @@ func execConfigGet(server *Server, client _interface.Client, args _type.Args) _i
 		result = append(result, key)
 		result = append(result, val)
 	}
-	return Reply.ToArrayReply(result...)
+	return Reply.StringToArrayReply(result...)
 }
 
 func execConfigSet(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
@@ -259,7 +259,7 @@ func execExec(server *Server, client _interface.Client, args _type.Args) _interf
 		}
 		replies = append(replies, string(reply.ToBytes()))
 	}
-	return Reply.ToArrayReply(replies...)
+	return Reply.StringToArrayReply(replies...)
 }
 func execDiscard(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	if !client.IsTxState() {

@@ -92,11 +92,11 @@ func EntityToCmd(key string, entity *_type.Entity) *Reply.ArrayReply {
 
 func ExpireToCmd(key string, expireTime *time.Time) *Reply.ArrayReply {
 	expire := strconv.FormatInt(expireTime.UnixNano()/1e6, 10)
-	return Reply.ToArrayReply("PExpireAT", key, expire)
+	return Reply.StringToArrayReply("PExpireAT", key, expire)
 }
 
 func stringToCmd(key string, bytes []byte) *Reply.ArrayReply {
-	return Reply.ToArrayReply("Set", key, string(bytes))
+	return Reply.StringToArrayReply("Set", key, string(bytes))
 }
 
 func listToCmd(key string, list List.List[[]byte]) *Reply.ArrayReply {

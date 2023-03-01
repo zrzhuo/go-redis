@@ -23,6 +23,15 @@ func (dict *SimpleDict[K, V]) Len() int {
 	return len(dict.m)
 }
 
+func (dict *SimpleDict[K, V]) ContainKey(key K) bool {
+	if dict == nil {
+		panic("dict is nil")
+	}
+	dict.checkNil()
+	_, existed := dict.m[key]
+	return existed
+}
+
 func (dict *SimpleDict[K, V]) Get(key K) (val V, existed bool) {
 	if dict == nil {
 		panic("dict is nil")
@@ -74,8 +83,8 @@ func (dict *SimpleDict[K, V]) Remove(key K) (result int) {
 		panic("dict is nil")
 	}
 	dict.checkNil()
-	delete(dict.m, key)
-	if _, existed := dict.m[key]; existed {
+	_, existed := dict.m[key]
+	if existed {
 		delete(dict.m, key)
 		return 1
 	}
@@ -87,13 +96,27 @@ func (dict *SimpleDict[K, V]) Keys() []K {
 		panic("dict is nil")
 	}
 	dict.checkNil()
-	res := make([]K, len(dict.m))
+	keys := make([]K, len(dict.m))
 	i := 0
 	for key := range dict.m {
-		res[i] = key
+		keys[i] = key
 		i++
 	}
-	return res
+	return keys
+}
+
+func (dict *SimpleDict[K, V]) Values() []V {
+	if dict == nil {
+		panic("dict is nil")
+	}
+	dict.checkNil()
+	vals := make([]V, len(dict.m))
+	i := 0
+	for _, val := range dict.m {
+		vals[i] = val
+		i++
+	}
+	return vals
 }
 
 func (dict *SimpleDict[K, V]) RandomKeys(num int) []K {
