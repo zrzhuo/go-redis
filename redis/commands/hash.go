@@ -9,9 +9,9 @@ import (
 )
 
 func init() {
-	redis.RegisterCommand("HSet", execHSet, utils.WriteFirstKey, 4, redis.ReadWrite)
+	redis.RegisterCommand("HSet", execHSet, utils.WriteFirst, 4, redis.ReadWrite)
 	//RegisterCommand("HSetNX", execHSetNX, writeFirstKey, undoHSet, 4, flagWrite)
-	redis.RegisterCommand("HGet", execHGet, utils.ReadFirstKey, 3, redis.ReadOnly)
+	redis.RegisterCommand("HGet", execHGet, utils.ReadFirst, 3, redis.ReadOnly)
 	//RegisterCommand("HExists", execHExists, readFirstKey, nil, 3, flagReadOnly)
 	//RegisterCommand("HDel", execHDel, writeFirstKey, undoHDel, -3, flagWrite)
 	//RegisterCommand("HLen", execHLen, readFirstKey, nil, 2, flagReadOnly)

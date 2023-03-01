@@ -13,18 +13,18 @@ import (
 
 // 注册命令
 func init() {
-	redis.RegisterCommand("Set", execSet, utils.WriteFirstKey, -3, redis.ReadWrite)
-	redis.RegisterCommand("SetNX", execSetNX, utils.WriteFirstKey, 3, redis.ReadWrite)
-	redis.RegisterCommand("SetEX", execSetEX, utils.WriteFirstKey, 4, redis.ReadWrite)
-	redis.RegisterCommand("Get", execGet, utils.ReadFirstKey, 2, redis.ReadOnly)
-	redis.RegisterCommand("GetEX", execGetEX, utils.WriteFirstKey, -2, redis.ReadWrite)
-	redis.RegisterCommand("GetSet", execGetSet, utils.WriteFirstKey, 3, redis.ReadWrite)
-	redis.RegisterCommand("GetDel", execGetDel, utils.WriteFirstKey, 2, redis.ReadWrite)
-	redis.RegisterCommand("StrLen", execStrLen, utils.ReadFirstKey, 2, redis.ReadOnly)
-	redis.RegisterCommand("Append", execAppend, utils.WriteFirstKey, 3, redis.ReadWrite)
-	redis.RegisterCommand("MSet", execMSet, utils.WriteEvenKeys, -3, redis.ReadWrite)
-	redis.RegisterCommand("MSetNX", execMSetNX, utils.WriteEvenKeys, -3, redis.ReadWrite)
-	redis.RegisterCommand("MGet", execMGet, utils.ReadAllKeys, -2, redis.ReadOnly)
+	redis.RegisterCommand("Set", execSet, utils.WriteFirst, -3, redis.ReadWrite)
+	redis.RegisterCommand("SetNX", execSetNX, utils.WriteFirst, 3, redis.ReadWrite)
+	redis.RegisterCommand("SetEX", execSetEX, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("Get", execGet, utils.ReadFirst, 2, redis.ReadOnly)
+	redis.RegisterCommand("GetEX", execGetEX, utils.WriteFirst, -2, redis.ReadWrite)
+	redis.RegisterCommand("GetSet", execGetSet, utils.WriteFirst, 3, redis.ReadWrite)
+	redis.RegisterCommand("GetDel", execGetDel, utils.WriteFirst, 2, redis.ReadWrite)
+	redis.RegisterCommand("StrLen", execStrLen, utils.ReadFirst, 2, redis.ReadOnly)
+	redis.RegisterCommand("Append", execAppend, utils.WriteFirst, 3, redis.ReadWrite)
+	redis.RegisterCommand("MSet", execMSet, utils.WriteEven, -3, redis.ReadWrite)
+	redis.RegisterCommand("MSetNX", execMSetNX, utils.WriteEven, -3, redis.ReadWrite)
+	redis.RegisterCommand("MGet", execMGet, utils.ReadAll, -2, redis.ReadOnly)
 }
 
 func execSet(db *redis.Database, args _type.Args) _interface.Reply {

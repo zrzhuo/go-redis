@@ -46,18 +46,15 @@ func (set *SimpleSet[T]) Members() []T {
 	return set.dict.Keys()
 }
 
-// RandomMembers 随机返回指定数量的member，且member可以重复
 func (set *SimpleSet[T]) RandomMembers(num int) []T {
 	return set.dict.RandomKeys(num)
 }
 
-// RandomDistinctMembers 随机返回指定数量的member，且member不可以重复
 func (set *SimpleSet[T]) RandomDistinctMembers(num int) []T {
 	return set.dict.RandomDistinctKeys(num)
 }
 
-// Intersect 求交集
-func (set *SimpleSet[T]) Intersect(ano Set[T]) Set[T] {
+func (set *SimpleSet[T]) Inter(ano Set[T]) Set[T] {
 	if set == nil {
 		panic("set is nil")
 	}
@@ -71,7 +68,6 @@ func (set *SimpleSet[T]) Intersect(ano Set[T]) Set[T] {
 	return result
 }
 
-// Diff 求差集
 func (set *SimpleSet[T]) Diff(ano Set[T]) Set[T] {
 	if set == nil {
 		panic("set is nil")
@@ -86,7 +82,6 @@ func (set *SimpleSet[T]) Diff(ano Set[T]) Set[T] {
 	return result
 }
 
-// Union 求并集
 func (set *SimpleSet[T]) Union(ano Set[T]) Set[T] {
 	if set == nil {
 		panic("set is nil")

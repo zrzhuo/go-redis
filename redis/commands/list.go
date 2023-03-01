@@ -11,18 +11,18 @@ import (
 )
 
 func init() {
-	redis.RegisterCommand("LPush", execLPush, utils.WriteFirstKey, -3, redis.ReadWrite)
-	redis.RegisterCommand("RPush", execRPush, utils.WriteFirstKey, -3, redis.ReadWrite)
-	redis.RegisterCommand("LPushX", execLPushX, utils.WriteFirstKey, -3, redis.ReadWrite)
-	redis.RegisterCommand("RPushX", execRPushX, utils.WriteFirstKey, -3, redis.ReadWrite)
-	redis.RegisterCommand("LPop", execLPop, utils.WriteFirstKey, 2, redis.ReadWrite)
-	redis.RegisterCommand("RPop", execRPop, utils.WriteFirstKey, 2, redis.ReadWrite)
-	redis.RegisterCommand("RPopLPush", execRPopLPush, utils.ReadTwoKeys, 3, redis.ReadWrite)
-	redis.RegisterCommand("LLen", execLLen, utils.ReadFirstKey, 2, redis.ReadOnly)
-	redis.RegisterCommand("LIndex", execLIndex, utils.ReadFirstKey, 3, redis.ReadOnly)
-	redis.RegisterCommand("LSet", execLSet, utils.WriteFirstKey, 4, redis.ReadWrite)
-	redis.RegisterCommand("LRem", execLRem, utils.WriteFirstKey, 4, redis.ReadWrite)
-	redis.RegisterCommand("LRange", execLRange, utils.ReadFirstKey, 4, redis.ReadOnly)
+	redis.RegisterCommand("LPush", execLPush, utils.WriteFirst, -3, redis.ReadWrite)
+	redis.RegisterCommand("RPush", execRPush, utils.WriteFirst, -3, redis.ReadWrite)
+	redis.RegisterCommand("LPushX", execLPushX, utils.WriteFirst, -3, redis.ReadWrite)
+	redis.RegisterCommand("RPushX", execRPushX, utils.WriteFirst, -3, redis.ReadWrite)
+	redis.RegisterCommand("LPop", execLPop, utils.WriteFirst, 2, redis.ReadWrite)
+	redis.RegisterCommand("RPop", execRPop, utils.WriteFirst, 2, redis.ReadWrite)
+	redis.RegisterCommand("RPopLPush", execRPopLPush, utils.ReadTwo, 3, redis.ReadWrite)
+	redis.RegisterCommand("LLen", execLLen, utils.ReadFirst, 2, redis.ReadOnly)
+	redis.RegisterCommand("LIndex", execLIndex, utils.ReadFirst, 3, redis.ReadOnly)
+	redis.RegisterCommand("LSet", execLSet, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("LRem", execLRem, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("LRange", execLRange, utils.ReadFirst, 4, redis.ReadOnly)
 }
 
 func execLPush(db *redis.Database, args _type.Args) _interface.Reply {

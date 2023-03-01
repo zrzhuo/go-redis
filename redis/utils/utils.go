@@ -59,6 +59,15 @@ func ToCmd(name string, args ...[]byte) _type.CmdLine {
 	return cmdLine
 }
 
+func StringToCmd(name string, args ...string) _type.CmdLine {
+	cmdLine := make([][]byte, len(args)+1)
+	cmdLine[0] = []byte(name)
+	for i, s := range args {
+		cmdLine[i+1] = []byte(s)
+	}
+	return cmdLine
+}
+
 func ToExpireCmd(key string, expireAt time.Time) _type.CmdLine {
 	ttl := strconv.FormatInt(expireAt.UnixNano()/1e6, 10)
 	return ToCmd("PExpireAT", []byte(key), []byte(ttl))

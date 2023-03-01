@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	redis.RegisterCommand("ZAdd", execZAdd, utils.WriteFirstKey, -4, redis.ReadWrite)
-	redis.RegisterCommand("ZScore", execZScore, utils.ReadFirstKey, 3, redis.ReadOnly)
+	redis.RegisterCommand("ZAdd", execZAdd, utils.WriteFirst, -4, redis.ReadWrite)
+	redis.RegisterCommand("ZScore", execZScore, utils.ReadFirst, 3, redis.ReadOnly)
 	//RegisterCommand("ZIncrBy", execZIncrBy, writeFirstKey, undoZIncr, 4, flagWrite)
-	redis.RegisterCommand("ZRank", execZRank, utils.ReadFirstKey, 3, redis.ReadOnly)
+	redis.RegisterCommand("ZRank", execZRank, utils.ReadFirst, 3, redis.ReadOnly)
 	//RegisterCommand("ZCount", execZCount, readFirstKey, nil, 4, flagReadOnly)
 	//RegisterCommand("ZRevRank", execZRevRank, readFirstKey, nil, 3, flagReadOnly)
 	//RegisterCommand("ZCard", execZCard, readFirstKey, nil, 2, flagReadOnly)
