@@ -6,3 +6,6 @@
 - 事务支持：Multi、Exec、Discard、Watch、UnWatch 命令 
 - AOF 持久化、 AOF 重写 
 - Config 配置：config set、config get
+
+
+redis-benchmark -h localhost -p 6666 -c 100 -n 10000 -q

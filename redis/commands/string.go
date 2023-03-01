@@ -25,6 +25,17 @@ func init() {
 	redis.RegisterCommand("MSet", execMSet, utils.WriteEven, -3, redis.ReadWrite)
 	redis.RegisterCommand("MSetNX", execMSetNX, utils.WriteEven, -3, redis.ReadWrite)
 	redis.RegisterCommand("MGet", execMGet, utils.ReadAll, -2, redis.ReadOnly)
+	redis.RegisterCommand("Incr", execIncr, utils.WriteFirst, 2, redis.ReadWrite)
+	redis.RegisterCommand("IncrBy", execIncrBy, utils.WriteFirst, 3, redis.ReadWrite)
+	redis.RegisterCommand("IncrByFloat", execIncrByFloat, utils.WriteFirst, 3, redis.ReadWrite)
+	redis.RegisterCommand("Decr", execDecr, utils.WriteFirst, 2, redis.ReadWrite)
+	redis.RegisterCommand("DecrBy", execDecrBy, utils.WriteFirst, 3, redis.ReadWrite)
+	redis.RegisterCommand("SetRange", execSetRange, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("GetRange", execGetRange, utils.ReadFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("SetBit", execSetBit, utils.WriteFirst, 4, redis.ReadWrite)
+	redis.RegisterCommand("GetBit", execGetBit, utils.ReadFirst, 3, redis.ReadWrite)
+	redis.RegisterCommand("BitCount", execBitCount, utils.ReadFirst, -2, redis.ReadWrite)
+	redis.RegisterCommand("BitPos", execBitPos, utils.ReadFirst, -3, redis.ReadWrite)
 }
 
 func execSet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -321,4 +332,38 @@ func execMGet(db *redis.Database, args _type.Args) _interface.Reply {
 		result[i] = val
 	}
 	return Reply.MakeArrayReply(result)
+}
+
+func execBitCount(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execBitPos(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execIncr(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execIncrByFloat(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execSetBit(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execDecr(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execDecrBy(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execGetBit(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execGetRange(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execIncrBy(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
+}
+func execSetRange(db *redis.Database, args _type.Args) _interface.Reply {
+	return Reply.MakeStatusReply("This command is not supported temporarily")
 }
