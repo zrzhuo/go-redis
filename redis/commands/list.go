@@ -89,7 +89,7 @@ func execLPop(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	val := list.LPop()
 	if list.Len() == 0 {
@@ -106,7 +106,7 @@ func execRPop(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	val := list.RPop()
 	if list.Len() == 0 {
@@ -123,7 +123,7 @@ func execRPopLPush(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if srcList == nil {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	destList, _, errReply := db.GetOrInitList(destKey) // 初始化destList
 	if errReply != nil {
@@ -155,21 +155,21 @@ func execLSet(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	idx, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("index value is not an illegal integer")
+		return Reply.StandardError("value is not an integer or out of range")
 	}
 	list, errReply := db.GetList(key)
 	if errReply != nil {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeErrReply("no such key")
+		return Reply.StandardError("no such key")
 	}
 	// 解析index
 	size, index := list.Len(), int(idx)
 	if index >= size {
-		return Reply.MakeErrReply("index out of range")
+		return Reply.StandardError("value is not an integer or out of range")
 	} else if index < -size {
-		return Reply.MakeErrReply("index out of range")
+		return Reply.StandardError("value is not an integer or out of range")
 	} else if index < 0 {
 		index = size + index
 	}
@@ -181,21 +181,21 @@ func execLIndex(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	idx, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("index value is not an illegal integer")
+		return Reply.StandardError("value is not an integer or out of range")
 	}
 	list, errReply := db.GetList(key)
 	if errReply != nil {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	size, index := list.Len(), int(idx)
 	// 解析index
 	if index >= size {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	} else if index < -size {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	} else if index < 0 {
 		index = size + index
 	}
@@ -205,9 +205,9 @@ func execLIndex(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execLRem(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
-	nun, err := strconv.ParseInt(string(args[1]), 10, 64)
+	num, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("index value is not an illegal integer")
+		return Reply.StandardError("value is not an integer or out of range")
 	}
 	target := args[2]
 	list, errReply := db.GetList(key)
@@ -221,10 +221,10 @@ func execLRem(db *redis.Database, args _type.Args) _interface.Reply {
 		return bytes.Equal(val, target)
 	}
 	var count int
-	if nun > 0 {
-		count = list.RemoveLeft(equals, int(nun))
-	} else if nun < 0 {
-		count = list.RemoveRight(equals, int(-nun))
+	if num > 0 {
+		count = list.RemoveLeft(equals, int(num))
+	} else if num < 0 {
+		count = list.RemoveRight(equals, int(-num))
 	} else {
 		count = list.RemoveAll(equals)
 	}
@@ -241,13 +241,12 @@ func execLRange(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	first, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("start value is not an illegal integer")
+		return Reply.StandardError("value is not an integer or out of range")
 	}
 	second, err := strconv.ParseInt(string(args[2]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("stop value is not an illegal integer")
+		return Reply.StandardError("value is not an integer or out of range")
 	}
-	start, stop := int(first), int(second)
 	list, errReply := db.GetList(key)
 	if errReply != nil {
 		return errReply
@@ -255,14 +254,14 @@ func execLRange(db *redis.Database, args _type.Args) _interface.Reply {
 	if list == nil {
 		return Reply.MakeEmptyArrayReply()
 	}
-	size := list.Len()
+	start, stop, size := int(first), int(second), list.Len()
 	// 解析start
 	if start < -size {
 		start = 0
 	} else if start < 0 {
 		start = size + start
 	} else if start >= size {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	// 解析stop
 	if stop < -size {

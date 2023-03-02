@@ -8,4 +8,5 @@
 - Config 配置：config set、config get
 
 
-redis-benchmark -h localhost -p 6666 -c 100 -n 10000 -q
+压测
+redis-benchmark -h localhost -p 6666 -c 200 -n 10000 -q

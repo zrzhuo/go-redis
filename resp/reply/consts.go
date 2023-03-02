@@ -32,23 +32,39 @@ func (r *OkReply) ToBytes() []byte {
 	return okBytes
 }
 
-/* ---- Null Bulk String Reply ---- */
+/* ---- Nil Bulk String Reply ---- */
 
-type NullBulkReply struct{}
+type NilBulkReply struct{}
 
-var nullBulkReply = &NullBulkReply{}
+var nilBulkReply = &NilBulkReply{}
 
-var nullBulkBytes = []byte("$-1" + CRLF)
+var nilBulkBytes = []byte("$-1" + CRLF)
 
-func MakeNullBulkReply() *NullBulkReply {
-	return nullBulkReply
+func MakeNilBulkReply() *NilBulkReply {
+	return nilBulkReply
 }
 
-func (r *NullBulkReply) ToBytes() []byte {
-	return nullBulkBytes
+func (r *NilBulkReply) ToBytes() []byte {
+	return nilBulkBytes
 }
 
-/* ---- Empty Array (Multi Bulk Strings)  Reply ---- */
+/* ---- Empty Bulk String Reply ---- */
+
+type NoReply struct{}
+
+var noReply = &NoReply{}
+
+var noBytes = []byte("")
+
+func MakeEmptyBulkReply() *NoReply {
+	return noReply
+}
+
+func (r *NoReply) ToBytes() []byte {
+	return noBytes
+}
+
+/* ---- Empty Array Reply ---- */
 
 type EmptyArrayReply struct{}
 
@@ -62,22 +78,6 @@ func MakeEmptyArrayReply() *EmptyArrayReply {
 
 func (r *EmptyArrayReply) ToBytes() []byte {
 	return emptyArrayBytes
-}
-
-/* ---- Empty Multi Bulk Strings Reply ---- */
-
-type NoReply struct{}
-
-var noReply = &NoReply{}
-
-var noBytes = []byte("")
-
-func MakeNoReply() *NoReply {
-	return noReply
-}
-
-func (r *NoReply) ToBytes() []byte {
-	return noBytes
 }
 
 /* ---- Queued Reply ---- */

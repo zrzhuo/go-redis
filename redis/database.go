@@ -61,11 +61,11 @@ func (db *Database) Execute(client _interface.Client, cmdLine _type.CmdLine) _in
 	cmd, ok := CmdRouter[cmdName]
 	// 是否存在该命令
 	if !ok {
-		return Reply.MakeErrReply("unknown command '" + cmdName + "'")
+		return Reply.StandardError("unknown command '" + cmdName + "'")
 	}
 	// 参数个数是否满足要求
 	if !utils.CheckArgNum(cmd.Arity, cmdLine) {
-		return Reply.MakeArgNumErrReply(cmdName)
+		return Reply.ArgNumError(cmdName)
 	}
 	args := _type.Args(cmdLine[1:])
 	// 获取有关的key
@@ -229,7 +229,7 @@ func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
 	}
 	bytes, ok := entity.Data.([]byte) // string的底层为[]byte，而非string
 	if !ok {
-		return nil, Reply.MakeWrongTypeErrReply()
+		return nil, Reply.WrongTypeError()
 	}
 	return bytes, nil
 }
@@ -241,7 +241,7 @@ func (db *Database) GetList(key string) (List.List[[]byte], _interface.ErrorRepl
 	}
 	list, ok := entity.Data.(List.List[[]byte])
 	if !ok {
-		return nil, Reply.MakeWrongTypeErrReply()
+		return nil, Reply.WrongTypeError()
 	}
 	return list, nil
 }
@@ -253,7 +253,7 @@ func (db *Database) GetSet(key string) (Set.Set[string], _interface.ErrorReply) 
 	}
 	set, ok := entity.Data.(Set.Set[string])
 	if !ok {
-		return nil, Reply.MakeWrongTypeErrReply()
+		return nil, Reply.WrongTypeError()
 	}
 	return set, nil
 }
@@ -265,7 +265,7 @@ func (db *Database) GetZSet(key string) (ZSet.ZSet[string], _interface.ErrorRepl
 	}
 	zset, ok := entity.Data.(ZSet.ZSet[string])
 	if !ok {
-		return nil, Reply.MakeWrongTypeErrReply()
+		return nil, Reply.WrongTypeError()
 	}
 	return zset, nil
 }
@@ -277,7 +277,7 @@ func (db *Database) GetDict(key string) (Dict.Dict[string, []byte], _interface.E
 	}
 	dict, ok := entity.Data.(Dict.Dict[string, []byte])
 	if !ok {
-		return nil, Reply.MakeWrongTypeErrReply()
+		return nil, Reply.WrongTypeError()
 	}
 	return dict, nil
 }

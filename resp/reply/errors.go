@@ -6,7 +6,7 @@ type StandardErrReply struct {
 	Status string
 }
 
-func MakeErrReply(status string) *StandardErrReply {
+func StandardError(status string) *StandardErrReply {
 	return &StandardErrReply{
 		Status: status,
 	}
@@ -26,9 +26,9 @@ type UnknownErrReply struct{}
 
 var unknownErrReply = &UnknownErrReply{}
 
-var unknownErrBytes = []byte("-ERR: unknown" + CRLF)
+var unknownErrBytes = []byte("-ERR: unknown error" + CRLF)
 
-func MakeUnknownErrReply() *UnknownErrReply {
+func UnknownError() *UnknownErrReply {
 	return unknownErrReply
 }
 
@@ -37,7 +37,7 @@ func (r *UnknownErrReply) ToBytes() []byte {
 }
 
 func (r *UnknownErrReply) Error() string {
-	return "unknown error occurred"
+	return "unknown error"
 }
 
 /* ---- ArgNum Error Reply ---- */
@@ -46,7 +46,7 @@ type ArgNumErrReply struct {
 	Cmd string
 }
 
-func MakeArgNumErrReply(cmd string) *ArgNumErrReply {
+func ArgNumError(cmd string) *ArgNumErrReply {
 	return &ArgNumErrReply{
 		Cmd: cmd,
 	}
@@ -66,7 +66,7 @@ type SyntaxErrReply struct{}
 
 var syntaxErrBytes = []byte("-ERR: syntax error" + CRLF)
 
-func MakeSyntaxErrReply() *SyntaxErrReply {
+func SyntaxError() *SyntaxErrReply {
 	return &SyntaxErrReply{}
 }
 
@@ -82,9 +82,9 @@ func (r *SyntaxErrReply) Error() string {
 
 type WrongTypeErrReply struct{}
 
-var wrongTypeErrBytes = []byte("-ERR: wrong type of value" + CRLF)
+var wrongTypeErrBytes = []byte("-ERR: WRONGTYPE Operation against a key holding the wrong kind of value" + CRLF)
 
-func MakeWrongTypeErrReply() *WrongTypeErrReply {
+func WrongTypeError() *WrongTypeErrReply {
 	return &WrongTypeErrReply{}
 }
 
@@ -93,17 +93,16 @@ func (r *WrongTypeErrReply) ToBytes() []byte {
 }
 
 func (r *WrongTypeErrReply) Error() string {
-	return "wrong type of value"
+	return "WRONGTYPE Operation against a key holding the wrong kind of value"
 }
 
 /* ---- Protocol Error Reply ---- */
 
-// ProtocolErrReply represents meeting unexpected byte during parse requests
 type ProtocolErrReply struct {
 	Msg string
 }
 
-func MakeProtocolErrReply(msg string) *ProtocolErrReply {
+func ProtocolError(msg string) *ProtocolErrReply {
 	return &ProtocolErrReply{
 		Msg: msg,
 	}
@@ -114,5 +113,5 @@ func (r *ProtocolErrReply) ToBytes() []byte {
 }
 
 func (r *ProtocolErrReply) Error() string {
-	return "protocol error: '" + r.Msg
+	return "protocol error: '" + r.Msg + "'"
 }

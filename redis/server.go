@@ -93,7 +93,7 @@ func (server *Server) ExecWithLock(client _interface.Client, cmdLine _type.CmdLi
 		return execAuth(server, client, args)
 	}
 	if !server.isAuth(client) {
-		return Reply.MakeErrReply("NOAUTH Authentication required.")
+		return Reply.StandardError("NOAUTH Authentication required.")
 	}
 	// 事务处理
 	if client.IsTxState() {
@@ -133,10 +133,10 @@ func (server *Server) execSysCommand(client _interface.Client, cmdLine _type.Cmd
 	args := _type.Args(cmdLine[1:])
 	sysCmd, ok := SysCmdRouter[cmd]
 	if !ok {
-		return Reply.MakeErrReply("unknown command '" + cmd + "'") // 不存在该命令
+		return Reply.StandardError("unknown command '" + cmd + "'") // 不存在该命令
 	}
 	if !utils.CheckArgNum(sysCmd.Arity, cmdLine) {
-		return Reply.MakeArgNumErrReply(cmd) // 参数个数不满足要求
+		return Reply.ArgNumError(cmd) // 参数个数不满足要求
 	}
 	return sysCmd.SysExec(server, client, args)
 }
@@ -145,7 +145,7 @@ func (server *Server) execCommand(client _interface.Client, cmdLine _type.CmdLin
 	dbIdx := client.GetSelectDB()
 	if dbIdx < 0 || dbIdx >= len(server.databases) {
 		err := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return Reply.MakeErrReply(err)
+		return Reply.StandardError(err)
 	}
 	db := server.databases[dbIdx].Load().(*Database)
 	return db.Execute(client, cmdLine)
@@ -158,7 +158,7 @@ func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) 
 	if ok {
 		// 检查参数个数
 		if !utils.CheckArgNum(sysCmd.Arity, cmdLine) {
-			errReply := Reply.MakeArgNumErrReply(name)
+			errReply := Reply.ArgNumError(name)
 			client.AddTxError(errReply)
 			return errReply
 		}
@@ -170,7 +170,7 @@ func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) 
 	if ok {
 		// 检查参数个数
 		if !utils.CheckArgNum(cmd.Arity, cmdLine) {
-			errReply := Reply.MakeArgNumErrReply(name)
+			errReply := Reply.ArgNumError(name)
 			client.AddTxError(errReply)
 			return errReply
 		}
@@ -178,7 +178,7 @@ func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) 
 		return Reply.MakeQueuedReply()
 	}
 	// unknown command
-	errReply := Reply.MakeErrReply("unknown command '" + name + "'")
+	errReply := Reply.StandardError("unknown command '" + name + "'")
 	client.AddTxError(errReply)
 	return errReply
 }

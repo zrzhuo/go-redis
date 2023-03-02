@@ -66,7 +66,7 @@ func execSRem(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execSPop(db *redis.Database, args _type.Args) _interface.Reply {
 	if len(args) > 2 {
-		return reply.MakeSyntaxErrReply()
+		return reply.SyntaxError()
 	}
 	key := string(args[0])
 	hasCount := len(args) == 2
@@ -76,7 +76,7 @@ func execSPop(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	if set == nil {
 		if !hasCount {
-			return reply.MakeNullBulkReply()
+			return reply.MakeNilBulkReply()
 		} else {
 			return reply.MakeEmptyArrayReply()
 		}
@@ -85,16 +85,22 @@ func execSPop(db *redis.Database, args _type.Args) _interface.Reply {
 		member := set.RandomDistinctMembers(1)[0]
 		set.Remove(member)
 		db.ToAOF(utils.ToCmd("SRem", args[0], []byte(member)))
+		if set.Len() == 0 {
+			db.Remove(key)
+		}
 		return reply.MakeBulkReply([]byte(member))
 	} else {
 		count, err := strconv.ParseInt(string(args[1]), 10, 64)
 		if err != nil {
-			return reply.MakeErrReply("value is not an integer or out of range")
+			return reply.StandardError("value is not an integer or out of range")
 		}
 		members := set.RandomDistinctMembers(int(count))
 		for _, member := range members {
 			set.Remove(member)
 			db.ToAOF(utils.ToCmd("SRem", args[0], []byte(member)))
+		}
+		if set.Len() == 0 {
+			db.Remove(key)
 		}
 		return reply.StringToArrayReply(members...)
 	}
@@ -102,7 +108,7 @@ func execSPop(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execSRandMember(db *redis.Database, args _type.Args) _interface.Reply {
 	if len(args) > 2 {
-		return reply.MakeSyntaxErrReply()
+		return reply.SyntaxError()
 	}
 	key := string(args[0])
 	hasCount := len(args) == 2
@@ -112,7 +118,7 @@ func execSRandMember(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	if set == nil {
 		if !hasCount {
-			return reply.MakeNullBulkReply()
+			return reply.MakeNilBulkReply()
 		} else {
 			return reply.MakeEmptyArrayReply()
 		}
@@ -123,7 +129,7 @@ func execSRandMember(db *redis.Database, args _type.Args) _interface.Reply {
 	} else {
 		count, err := strconv.ParseInt(string(args[1]), 10, 64)
 		if err != nil {
-			return reply.MakeErrReply("value is not an integer or out of range")
+			return reply.StandardError("value is not an integer or out of range")
 		}
 		members := set.RandomDistinctMembers(int(count))
 		return reply.StringToArrayReply(members...)

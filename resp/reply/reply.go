@@ -2,7 +2,7 @@ package reply
 
 import (
 	"bytes"
-	"go-redis/interface"
+	_interface "go-redis/interface"
 	"strconv"
 )
 
@@ -22,7 +22,7 @@ func MakeBulkReply(arg []byte) *BulkReply {
 
 func (r *BulkReply) ToBytes() []byte {
 	if r.Arg == nil {
-		return nullBulkBytes
+		return nilBulkBytes
 	}
 	return []byte("$" + strconv.Itoa(len(r.Arg)) + CRLF + string(r.Arg) + CRLF)
 }
@@ -39,14 +39,6 @@ func MakeArrayReply(args [][]byte) *ArrayReply {
 	}
 }
 
-func StringToArrayReply(lines ...string) *ArrayReply {
-	args := make([][]byte, len(lines))
-	for i, line := range lines {
-		args[i] = []byte(line)
-	}
-	return MakeArrayReply(args)
-}
-
 func (r *ArrayReply) ToBytes() []byte {
 	length := len(r.Args)
 	var buf bytes.Buffer
@@ -57,29 +49,6 @@ func (r *ArrayReply) ToBytes() []byte {
 		} else {
 			buf.WriteString("$" + strconv.Itoa(len(arg)) + CRLF + string(arg) + CRLF)
 		}
-	}
-	return buf.Bytes()
-}
-
-/* ---- Multi Raw Reply ---- */
-
-// MultiRawReply store complex list structure, for example GeoPos commands
-type MultiRawReply struct {
-	Replies []_interface.Reply
-}
-
-func MakeMultiRawReply(replies []_interface.Reply) *MultiRawReply {
-	return &MultiRawReply{
-		Replies: replies,
-	}
-}
-
-func (r *MultiRawReply) ToBytes() []byte {
-	argLen := len(r.Replies)
-	var buf bytes.Buffer
-	buf.WriteString("*" + strconv.Itoa(argLen) + CRLF)
-	for _, arg := range r.Replies {
-		buf.Write(arg.ToBytes())
 	}
 	return buf.Bytes()
 }
@@ -116,12 +85,25 @@ func (r *IntReply) ToBytes() []byte {
 	return []byte(":" + strconv.FormatInt(r.Code, 10) + CRLF)
 }
 
-/* ---- Others ---- */
+/* ---- Multi Raw Reply ---- */
 
-func IsOKReply(reply _interface.Reply) bool {
-	return string(reply.ToBytes()) == "+OK\r\n"
+// MultiRawReply store complex list structure, for example GeoPos commands
+type MultiRawReply struct {
+	Replies []_interface.Reply
 }
 
-func IsErrorReply(reply _interface.Reply) bool {
-	return reply.ToBytes()[0] == '-'
+func MakeMultiRawReply(replies []_interface.Reply) *MultiRawReply {
+	return &MultiRawReply{
+		Replies: replies,
+	}
+}
+
+func (r *MultiRawReply) ToBytes() []byte {
+	argLen := len(r.Replies)
+	var buf bytes.Buffer
+	buf.WriteString("*" + strconv.Itoa(argLen) + CRLF)
+	for _, arg := range r.Replies {
+		buf.Write(arg.ToBytes())
+	}
+	return buf.Bytes()
 }

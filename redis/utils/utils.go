@@ -41,6 +41,29 @@ func ParseCmds(line []byte) ([][]byte, error) {
 	return cmdLine, nil
 }
 
+func ConvertRange(start int, end int, size int) (int, int) {
+	if start < -size {
+		return -1, -1
+	} else if start < 0 {
+		start = size + start
+	} else if start >= size {
+		return -1, -1
+	}
+	if end < -size {
+		return -1, -1
+	} else if end < 0 {
+		end = size + end + 1
+	} else if end < size {
+		end = end + 1
+	} else {
+		end = size
+	}
+	if start > end {
+		return -1, -1
+	}
+	return start, end
+}
+
 // CheckArgNum 检查参数个数是否满足要求
 func CheckArgNum(arity int, cmdLine _type.CmdLine) bool {
 	argNum := len(cmdLine)

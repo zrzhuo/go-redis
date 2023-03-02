@@ -29,7 +29,7 @@ func init() {
 
 func execZAdd(db *redis.Database, args _type.Args) _interface.Reply {
 	if len(args)%2 != 1 {
-		return Reply.MakeArgNumErrReply("ZAdd")
+		return Reply.ArgNumError("ZAdd")
 	}
 	key, num := string(args[0]), (len(args)-1)/2
 	zset, _, errReply := db.GetOrInitZSet(key)
@@ -41,7 +41,7 @@ func execZAdd(db *redis.Database, args _type.Args) _interface.Reply {
 		member := string(args[2*i+2])
 		score, err := strconv.ParseFloat(string(args[2*i+1]), 64)
 		if err != nil {
-			return Reply.MakeErrReply("value is not a valid float")
+			return Reply.StandardError("value is not a valid float")
 		}
 		count += zset.Add(member, score)
 	}
@@ -56,11 +56,11 @@ func execZRank(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	rank := zset.GetRank(member, false)
 	if rank < 0 {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	return Reply.MakeIntReply(int64(rank))
 }
@@ -72,11 +72,11 @@ func execZScore(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	score, existed := zset.Get(member)
 	if !existed {
-		return Reply.MakeNullBulkReply()
+		return Reply.MakeNilBulkReply()
 	}
 	value := strconv.FormatFloat(score, 'f', -1, 64)
 	return Reply.MakeBulkReply([]byte(value))

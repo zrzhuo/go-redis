@@ -37,7 +37,7 @@ func init() {
 func execSleep(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	st, err := strconv.Atoi(string(args[0]))
 	if err != nil {
-		return Reply.MakeErrReply("illegal integer.")
+		return Reply.StandardError("illegal integer.")
 	}
 	time.Sleep(time.Duration(st) * time.Second)
 	return Reply.MakeStatusReply("sleep over")
@@ -53,17 +53,17 @@ func execPing(server *Server, client _interface.Client, args _type.Args) _interf
 	if size == 1 {
 		return Reply.MakeStatusReply(string(args[0]))
 	}
-	return Reply.MakeArgNumErrReply("Ping")
+	return Reply.ArgNumError("Ping")
 }
 
 func execAuth(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	if Config.Requirepass == "" {
-		return Reply.MakeErrReply("no password is set.")
+		return Reply.StandardError("no password is set.")
 	}
 	password := string(args[0])
 	client.SetPassword(password)
 	if password != Config.Requirepass {
-		return Reply.MakeErrReply("invalid password.")
+		return Reply.StandardError("invalid password.")
 	}
 	return Reply.MakeOkReply()
 }
@@ -71,11 +71,11 @@ func execAuth(server *Server, client _interface.Client, args _type.Args) _interf
 func execSelect(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	dbIdx, err := strconv.Atoi(string(args[0]))
 	if err != nil {
-		return Reply.MakeErrReply("selected index is invalid")
+		return Reply.StandardError("selected index is invalid")
 	}
 	if dbIdx >= len(server.databases) || dbIdx < 0 {
 		msg := fmt.Sprintf("selected index is out of range[0, %d]", len(server.databases)-1)
-		return Reply.MakeErrReply(msg)
+		return Reply.StandardError(msg)
 	}
 	client.SetSelectDB(dbIdx) // 修改client的dbIdx
 	return Reply.MakeOkReply()
@@ -91,13 +91,13 @@ func execConfig(server *Server, client _interface.Client, args _type.Args) _inte
 	if cmd == "set" {
 		return execConfigSet(server, client, args)
 	}
-	return Reply.MakeErrReply(fmt.Sprintf("unknown subcommand '%s'", cmd))
+	return Reply.StandardError(fmt.Sprintf("unknown subcommand '%s'", cmd))
 }
 
 func execConfigGet(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	num := len(args)
 	if num < 2 {
-		return Reply.MakeArgNumErrReply("config|get")
+		return Reply.ArgNumError("config|get")
 	}
 	var result []string
 	for i := 1; i < num; i++ {
@@ -115,14 +115,14 @@ func execConfigGet(server *Server, client _interface.Client, args _type.Args) _i
 func execConfigSet(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	num := len(args)
 	if num < 2 || num%2 == 0 {
-		return Reply.MakeArgNumErrReply("config|set")
+		return Reply.ArgNumError("config|set")
 	}
 	for i := 0; i < num/2; i++ {
 		key := strings.ToLower(string(args[2*i+1]))
 		val := strings.ToLower(string(args[2*i+2]))
 		err := SetConfig(key, val)
 		if err != nil {
-			return Reply.MakeErrReply(err.Error())
+			return Reply.StandardError(err.Error())
 		}
 	}
 	return Reply.MakeOkReply()
@@ -182,7 +182,7 @@ func execPublish(server *Server, client _interface.Client, args _type.Args) _int
 func execReWriteAOF(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	err := server.persister.ReWrite()
 	if err != nil {
-		return Reply.MakeErrReply(err.Error())
+		return Reply.StandardError(err.Error())
 	}
 	return Reply.MakeOkReply()
 }
@@ -198,7 +198,7 @@ func execBGReWriteAOF(server *Server, client _interface.Client, args _type.Args)
 
 func execWatch(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	if client.IsTxState() {
-		return Reply.MakeErrReply("WATCH inside MULTI is not allowed")
+		return Reply.StandardError("WATCH inside MULTI is not allowed")
 	}
 	client.InitWatch(server.DataBaseCount())
 	dbIdx := client.GetSelectDB()
@@ -218,7 +218,7 @@ func execUnWatch(server *Server, client _interface.Client, args _type.Args) _int
 
 func execMulti(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	if client.IsTxState() {
-		return Reply.MakeErrReply("MULTI calls can not be nested")
+		return Reply.StandardError("MULTI calls can not be nested")
 	}
 	client.SetTxState(true)
 	return Reply.MakeOkReply()
@@ -226,7 +226,7 @@ func execMulti(server *Server, client _interface.Client, args _type.Args) _inter
 
 func execExec(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	if !client.IsTxState() {
-		return Reply.MakeErrReply("EXEC without MULTI")
+		return Reply.StandardError("EXEC without MULTI")
 	}
 	// 执行事务期间禁止server执行其他命令
 	server.SetTxing(true)
@@ -241,13 +241,13 @@ func execExec(server *Server, client _interface.Client, args _type.Args) _interf
 		for key, version := range keys {
 			currVersion := db.GetVersion(key)
 			if version != currVersion {
-				return Reply.MakeNullBulkReply() // 已被修改，放弃事务执行
+				return Reply.MakeNilBulkReply() // 已被修改，放弃事务执行
 			}
 		}
 	}
 	// 检查是否出现错误
 	if len(client.GetTxError()) > 0 {
-		return Reply.MakeErrReply("EXECABORT Transaction discarded because of previous errors.")
+		return Reply.StandardError("EXECABORT Transaction discarded because of previous errors.")
 	}
 	// 执行
 	cmdLines := client.GetTxQueue()
@@ -263,7 +263,7 @@ func execExec(server *Server, client _interface.Client, args _type.Args) _interf
 }
 func execDiscard(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	if !client.IsTxState() {
-		return Reply.MakeErrReply("DISCARD without MULTI")
+		return Reply.StandardError("DISCARD without MULTI")
 	}
 	client.SetTxState(false)
 	client.ClearTxQueue()

@@ -50,7 +50,7 @@ func (handler *Handler) Handle(conn net.Conn) {
 				return
 			}
 			// 其他错误
-			errReply := Reply.MakeErrReply(payload.Err.Error())
+			errReply := Reply.StandardError(payload.Err.Error())
 			_, err := client.Write(errReply.ToBytes())
 			if err != nil {
 				handler.closeClient(client)
@@ -75,7 +75,7 @@ func (handler *Handler) Handle(conn net.Conn) {
 		if result != nil {
 			_, _ = client.Write(result.ToBytes())
 		} else {
-			_, _ = client.Write(Reply.MakeUnknownErrReply().ToBytes())
+			_, _ = client.Write(Reply.UnknownError().ToBytes())
 		}
 	}
 }

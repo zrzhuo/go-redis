@@ -58,7 +58,7 @@ func execDel(db *redis.Database, args _type.Args) _interface.Reply {
 func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	ttlArg, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("illegal integer for ttl")
+		return Reply.StandardError("illegal integer for ttl")
 	}
 	key := string(args[0])
 	_, existed := db.Get(key)
@@ -75,7 +75,7 @@ func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
 func execPExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	ttlArg, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("illegal integer for ttl")
+		return Reply.StandardError("illegal integer for ttl")
 	}
 	key := string(args[0])
 	_, existed := db.Get(key)
@@ -92,7 +92,7 @@ func execPExpire(db *redis.Database, args _type.Args) _interface.Reply {
 func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	ttl, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("illegal integer for ttl")
+		return Reply.StandardError("illegal integer for ttl")
 	}
 	key := string(args[0])
 	_, existed := db.Get(key)
@@ -108,7 +108,7 @@ func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 func execPExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	ttl, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
-		return Reply.MakeErrReply("illegal integer for ttl")
+		return Reply.StandardError("illegal integer for ttl")
 	}
 	key := string(args[0])
 	_, existed := db.Get(key)
@@ -207,33 +207,49 @@ func execType(db *redis.Database, args _type.Args) _interface.Reply {
 	case zset.ZSet[string]:
 		return Reply.MakeStatusReply("zset")
 	}
-	return Reply.MakeUnknownErrReply()
+	return Reply.UnknownError()
 }
 
 func execRename(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	key, newKey := string(args[0]), string(args[1])
+	entity, existed := db.Get(key)
+	if !existed {
+		return Reply.StandardError("no such key") // 键不存在
+	}
+	// 重新设置newKey，旧值被覆盖
+	db.Put(newKey, entity)
+	// 设置ttl
+	expireTime, ok := db.GetExpireTime(key)
+	if ok {
+		db.Persist(newKey) // 清除之前的ttl
+		db.SetExpire(newKey, expireTime)
+	}
+	db.Remove(key) // 移除旧key
+	db.ToAOF(utils.ToCmd("Rename", args...))
+	return Reply.MakeOkReply()
 }
 
 func execRenameNx(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
-	//src, dest := string(args[0]), string(args[1])
-	//entity, existed := db.Get(src)
-	//if !existed {
-	//	return Reply.MakeErrReply("no such key") // 键不存在
-	//}
-	//_, existed = db.Get(dest)
-	//if existed {
-	//	return Reply.MakeIntReply(0) // 新键已存在
-	//}
-	//db.Remove(dest)
-	//db.Put(dest, entity)
-	//expireTime, hasTTL := db.GetExpireTime(src)
-	//if hasTTL {
-	//	db.SetExpire(dest, expireTime)
-	//}
-	//db.Remove(src)
-	//db.ToAOF(utils.ToCmd("RenameNX", args...))
-	//return Reply.MakeIntReply(1)
+	key, newKey := string(args[0]), string(args[1])
+	entity, existed := db.Get(key)
+	if !existed {
+		return Reply.StandardError("no such key") // 键不存在
+	}
+	_, existed = db.Get(newKey)
+	if existed {
+		return Reply.MakeIntReply(0) // 新键已存在
+	}
+	// 重新设置newKey，旧值被覆盖
+	db.Put(newKey, entity)
+	// 设置ttl
+	expireTime, ok := db.GetExpireTime(key)
+	if ok {
+		db.Persist(newKey) // 清除之前的ttl
+		db.SetExpire(newKey, expireTime)
+	}
+	db.Remove(key) // 移除旧key
+	db.ToAOF(utils.ToCmd("RenameNX", args...))
+	return Reply.MakeIntReply(1)
 }
 
 func execKeys(db *redis.Database, args _type.Args) _interface.Reply {

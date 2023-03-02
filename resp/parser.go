@@ -91,7 +91,7 @@ func (parser *Parser) parseRESP() {
 			}
 		case '-':
 			// 错误信息(Error)
-			reply := Reply.MakeErrReply(string(line[1:]))
+			reply := Reply.StandardError(string(line[1:]))
 			parser.ch <- &Payload{Data: reply}
 		default:
 			args := bytes.Split(line, []byte{' '})
@@ -156,7 +156,7 @@ func (parser *Parser) parseBulkString(header []byte) error {
 		parser.handleError("illegal bulk string header '" + string(header) + "'")
 		return nil
 	} else if size == -1 {
-		reply := Reply.MakeNullBulkReply() // Null Bulk String
+		reply := Reply.MakeNilBulkReply() // Null Bulk String
 		parser.ch <- &Payload{Data: reply}
 		return nil
 	} else {
