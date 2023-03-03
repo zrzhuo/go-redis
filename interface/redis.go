@@ -26,7 +26,7 @@ type Client interface {
 	AddTxError(err error)
 	GetTxError() []error
 	InitWatch(dbNum int)
-	DestoryWatch()
+	DestroyWatch()
 	SetWatchKey(dbIdx int, key string, version int)
 	GetWatchKeys() []map[string]int
 }

@@ -7,7 +7,10 @@ import (
 	ZSet "go-redis/datastruct/zset"
 )
 
+// CmdLine 一个完整的redis命令
 type CmdLine [][]byte
+
+// Args 一个命令的参数
 type Args [][]byte
 
 const (

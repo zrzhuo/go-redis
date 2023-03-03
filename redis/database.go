@@ -323,7 +323,7 @@ func (db *Database) GetOrInitZSet(key string) (zset ZSet.ZSet[string], isNew boo
 	}
 	isNew = false
 	if zset == nil {
-		// 初始化zset
+		// 初始化zset，提供string类型的比较函数
 		compare := func(a string, b string) int {
 			if a < b {
 				return -1

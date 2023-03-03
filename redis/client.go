@@ -179,7 +179,7 @@ func (client *Client) InitWatch(dbNum int) {
 	client.txWatch = txWatch
 }
 
-func (client *Client) DestoryWatch() {
+func (client *Client) DestroyWatch() {
 	client.txWatch = nil
 }
 

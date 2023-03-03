@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// 一个bucket含有一个map和一把锁，访问map前需要获取锁
 type bucket[K comparable, V any] struct {
 	m     map[K]V      // 哈希表
 	mutex sync.RWMutex // 锁
@@ -19,30 +20,43 @@ func (bucket *bucket[K, V]) randomKey() []K {
 	if bucket == nil {
 		panic("bucket is nil")
 	}
+	// 获取读锁
 	bucket.mutex.RLock()
 	defer bucket.mutex.RUnlock()
 
 	for key := range bucket.m {
 		return []K{key} // 做一层包装，以配合nil
 	}
-	return nil
+	return nil // bucket无元素
 }
 
+// ConcurrentDict 并发安全的Dict，其中包含若干个bucket，每个bucket都有自己独立的锁
 type ConcurrentDict[K comparable, V any] struct {
 	buckets   []*bucket[K, V]
-	bucketNum int32
-	length    int32
+	bucketNum int32        // bucket个数
+	length    int32        // 包含键值对的个数
+	lock      sync.RWMutex // 锁
 }
 
-func checkNilDict(dict any) {
-	if dict == nil {
-		panic("dict is nil")
+func MakeConcurrentDict[K comparable, V any](num int32) *ConcurrentDict[K, V] {
+	bucketNum := computeBucketNum(num) // 计算bucket的合适个数
+	buckets := make([]*bucket[K, V], bucketNum)
+	for i := int32(0); i < bucketNum; i++ {
+		buckets[i] = &bucket[K, V]{
+			m: make(map[K]V),
+		}
+	}
+	return &ConcurrentDict[K, V]{
+		buckets:   buckets,
+		bucketNum: bucketNum,
+		length:    0,
 	}
 }
 
-func computeCapacity(param int32) (size int32) {
+// 计算合适的bucket个数
+func computeBucketNum(param int32) (size int32) {
 	if param <= 16 {
-		return 16 // 最小容量为16
+		return 16 // bucket个数最少为16
 	}
 	n := param - 1
 	n |= n >> 1
@@ -56,118 +70,134 @@ func computeCapacity(param int32) (size int32) {
 	return n + 1
 }
 
-func MakeConcurrentDict[K comparable, V any](bucketNum int32) *ConcurrentDict[K, V] {
-	bucketNum = computeCapacity(bucketNum)
-	buckets := make([]*bucket[K, V], bucketNum)
-	for i := int32(0); i < bucketNum; i++ {
-		buckets[i] = &bucket[K, V]{m: make(map[K]V)}
-	}
-	return &ConcurrentDict[K, V]{
-		buckets:   buckets,
-		bucketNum: bucketNum,
-		length:    0,
-	}
-}
-
-// 定位bucket
-func (dict *ConcurrentDict[K, V]) spread(hashCode uint32) uint32 {
-	checkNilDict(dict)
-	tableSize := uint32(len(dict.buckets))
-	return (tableSize - 1) & hashCode
-}
-
-// 获取指定bucket
-func (dict *ConcurrentDict[K, V]) getShard(index uint32) *bucket[K, V] {
-	checkNilDict(dict)
+// 根据key计算并获取该key应该存放的bucket
+func (dict *ConcurrentDict[K, V]) getBucket(key K) *bucket[K, V] {
+	hashCode := fnv.Fnv32(key) // fnv算法计算哈希值
+	index := (uint32(dict.bucketNum) - 1) & hashCode
 	return dict.buckets[index]
-}
-
-// 根据key计算其应该存放的bucket
-func (dict *ConcurrentDict[K, V]) computeShard(key K) *bucket[K, V] {
-	hashCode := fnv.Fnv32(key)
-	index := dict.spread(hashCode)
-	return dict.getShard(index)
 }
 
 func (dict *ConcurrentDict[K, V]) Len() int {
 	checkNilDict(dict)
-	return int(atomic.LoadInt32(&dict.length))
+	return int(atomic.LoadInt32(&dict.length)) // atomically
 }
 
 func (dict *ConcurrentDict[K, V]) ContainKey(key K) bool {
 	checkNilDict(dict)
-	s := dict.computeShard(key)
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	bucket := dict.getBucket(key)
+	// 获取读锁
+	bucket.mutex.RLock()
+	defer bucket.mutex.RUnlock()
 
-	_, existed := s.m[key]
+	_, existed := bucket.m[key]
 	return existed
 }
 
 func (dict *ConcurrentDict[K, V]) Get(key K) (val V, existed bool) {
 	checkNilDict(dict)
-	s := dict.computeShard(key)
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	bucket := dict.getBucket(key)
+	// 获取读锁
+	bucket.mutex.RLock()
+	defer bucket.mutex.RUnlock()
 
-	val, existed = s.m[key]
+	val, existed = bucket.m[key]
 	return
 }
 
 func (dict *ConcurrentDict[K, V]) Put(key K, val V) (result int) {
 	checkNilDict(dict)
-	s := dict.computeShard(key)
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	bucket := dict.getBucket(key)
+	// 获取写锁
+	bucket.mutex.Lock()
+	defer bucket.mutex.Unlock()
 
-	if _, ok := s.m[key]; ok {
-		s.m[key] = val
+	if _, ok := bucket.m[key]; ok {
+		bucket.m[key] = val
 		return 0
 	}
 	atomic.AddInt32(&dict.length, 1)
-	s.m[key] = val
+	bucket.m[key] = val
 	return 1
 }
 
 func (dict *ConcurrentDict[K, V]) PutIfAbsent(key K, val V) (result int) {
 	checkNilDict(dict)
-	s := dict.computeShard(key)
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	if _, ok := s.m[key]; ok {
-		return 0
+	bucket := dict.getBucket(key)
+	// 获取写锁
+	bucket.mutex.Lock()
+	defer bucket.mutex.Unlock()
+	_, existed := bucket.m[key]
+	if existed {
+		return 0 // 已存在
+	} else {
+		bucket.m[key] = val              // 未存在
+		atomic.AddInt32(&dict.length, 1) // atomically
+		return 1
 	}
-	s.m[key] = val
-	atomic.AddInt32(&dict.length, 1)
-	return 1
 }
 
 func (dict *ConcurrentDict[K, V]) PutIfExists(key K, val V) (result int) {
 	checkNilDict(dict)
-	s := dict.computeShard(key)
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	if _, ok := s.m[key]; ok {
-		s.m[key] = val
+	bucket := dict.getBucket(key)
+	// 获取写锁
+	bucket.mutex.Lock()
+	defer bucket.mutex.Unlock()
+	_, existed := bucket.m[key]
+	if existed {
+		bucket.m[key] = val // 已存在
 		return 1
+	} else {
+		return 0 //未存在
 	}
-	return 0
 }
 
 func (dict *ConcurrentDict[K, V]) Remove(key K) (result int) {
 	checkNilDict(dict)
-	s := dict.computeShard(key)
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	_, existed := s.m[key]
+	bucket := dict.getBucket(key)
+	// 获取写锁
+	bucket.mutex.Lock()
+	defer bucket.mutex.Unlock()
+	_, existed := bucket.m[key]
 	if existed {
-		delete(s.m, key)
-		atomic.AddInt32(&dict.length, -1)
+		delete(bucket.m, key)             // 已存在
+		atomic.AddInt32(&dict.length, -1) // atomically
 		return 1
+	} else {
+		return 0 // 未存在
 	}
-	return 0
+}
+
+func (dict *ConcurrentDict[K, V]) ForEach(consumer Consumer[K, V]) {
+	checkNilDict(dict)
+	for _, bucket := range dict.buckets {
+		// 使用匿名函数是为了 bucket.mutex.RUnlock() 在本循环内即可执行
+		func() {
+			// 只对一个bucket加锁
+			bucket.mutex.RLock()
+			defer bucket.mutex.RUnlock()
+			for key, val := range bucket.m {
+				continues := consumer(key, val)
+				if !continues {
+					return
+				}
+			}
+		}()
+	}
+}
+
+func (dict *ConcurrentDict[K, V]) RealForEach(consumer Consumer[K, V]) {
+	checkNilDict(dict)
+	// 对整个Dict加锁
+	dict.lock.RLock()
+	defer dict.lock.RUnlock()
+	for _, bucket := range dict.buckets {
+		for key, val := range bucket.m {
+			continues := consumer(key, val)
+			if !continues {
+				return
+			}
+		}
+	}
 }
 
 func (dict *ConcurrentDict[K, V]) Keys() []K {
@@ -202,27 +232,57 @@ func (dict *ConcurrentDict[K, V]) Values() []V {
 	return vals
 }
 
+func (dict *ConcurrentDict[K, V]) RealKeys() []K {
+	checkNilDict(dict)
+	keys := make([]K, dict.Len())
+	i := 0
+	dict.RealForEach(func(key K, val V) bool {
+		if i < len(keys) {
+			keys[i] = key
+			i++
+		} else {
+			keys = append(keys, key)
+		}
+		return true
+	})
+	return keys
+}
+
+func (dict *ConcurrentDict[K, V]) RealValues() []V {
+	checkNilDict(dict)
+	vals := make([]V, dict.Len())
+	i := 0
+	dict.RealForEach(func(key K, val V) bool {
+		if i < len(vals) {
+			vals[i] = val
+			i++
+		} else {
+			vals = append(vals, val)
+		}
+		return true
+	})
+	return vals
+}
+
 func (dict *ConcurrentDict[K, V]) RandomKeys(num int) []K {
 	checkNilDict(dict)
 	size := dict.Len()
 	if num >= size {
 		return dict.Keys()
 	}
-	shardCount := len(dict.buckets)
-	result := make([]K, num)
-	nR := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < num; {
-		shard := dict.getShard(uint32(nR.Intn(shardCount)))
-		if shard == nil {
-			continue
-		}
-		key := shard.randomKey()
-		if key != nil {
-			result[i] = key[0]
+	keys := make([]K, num)
+	seed := rand.New(rand.NewSource(time.Now().UnixNano()))
+	i := 0
+	for i < num {
+		index := seed.Intn(int(dict.bucketNum)) // 获取一个随机下标
+		bucket := dict.buckets[index]           // 随机bucket
+		res := bucket.randomKey()               // 从bucket中获取一个随机key，结果可能为nil
+		if res != nil {
+			keys[i] = res[0]
 			i++
 		}
 	}
-	return result
+	return keys
 }
 
 func (dict *ConcurrentDict[K, V]) RandomDistinctKeys(num int) []K {
@@ -231,49 +291,32 @@ func (dict *ConcurrentDict[K, V]) RandomDistinctKeys(num int) []K {
 	if num >= size {
 		return dict.Keys()
 	}
-	shardCount := len(dict.buckets)
-	result := make(map[K]struct{})
-	nR := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for len(result) < num {
-		shardIndex := uint32(nR.Intn(shardCount))
-		shard := dict.getShard(shardIndex)
-		if shard == nil {
-			continue
-		}
-		key := shard.randomKey()
-		if key != nil {
-			if _, exists := result[key[0]]; !exists {
-				result[key[0]] = struct{}{}
-			}
+	keys := make(map[K]bool) // 使用map去重
+	seed := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for len(keys) < num {
+		index := seed.Intn(int(dict.bucketNum)) // 获取一个随机下标
+		bucket := dict.buckets[index]           // 随机bucket
+		res := bucket.randomKey()               // 从bucket中获取一个随机key，结果可能为nil
+		if res != nil {
+			keys[res[0]] = true
 		}
 	}
 	arr := make([]K, num)
 	i := 0
-	for k := range result {
+	for k := range keys {
 		arr[i] = k
 		i++
 	}
 	return arr
 }
 
-func (dict *ConcurrentDict[K, V]) ForEach(consumer Consumer[K, V]) {
-	checkNilDict(dict)
-	for _, s := range dict.buckets {
-		s.mutex.RLock()
-		// 使用匿名函数是为了 s.mutex.RUnlock() 正常执行
-		func() {
-			defer s.mutex.RUnlock()
-			for key, val := range s.m {
-				continues := consumer(key, val)
-				if !continues {
-					return
-				}
-			}
-		}()
-	}
-}
-
 func (dict *ConcurrentDict[K, V]) Clear() {
 	checkNilDict(dict)
 	*dict = *MakeConcurrentDict[K, V](dict.bucketNum)
+}
+
+func checkNilDict(dict any) {
+	if dict == nil {
+		panic("dict is nil")
+	}
 }

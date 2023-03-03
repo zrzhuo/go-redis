@@ -1,15 +1,14 @@
-# Binaries for programs and plugins
 *.exe
 *.exe~
 *.test
 *.so
 *.dll
-*.aof
-*.rdb
 *.dylib
 
 # idea
 .idea
 *.iml
 
+# aof文件和log文件
+*.aof
 logs

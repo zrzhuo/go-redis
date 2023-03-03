@@ -212,7 +212,7 @@ func execWatch(server *Server, client _interface.Client, args _type.Args) _inter
 }
 
 func execUnWatch(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
-	client.DestoryWatch()
+	client.DestroyWatch()
 	return Reply.MakeOkReply()
 }
 
@@ -234,7 +234,7 @@ func execExec(server *Server, client _interface.Client, args _type.Args) _interf
 	// 解除client事务状态，并清空txQueue和txWatch
 	defer client.SetTxState(false)
 	defer client.ClearTxQueue()
-	defer client.DestoryWatch()
+	defer client.DestroyWatch()
 	// 检查被watch的keys是否被更改
 	for i, keys := range client.GetWatchKeys() {
 		db := server.GetDatabase(i)
@@ -267,6 +267,6 @@ func execDiscard(server *Server, client _interface.Client, args _type.Args) _int
 	}
 	client.SetTxState(false)
 	client.ClearTxQueue()
-	client.DestoryWatch()
+	client.DestroyWatch()
 	return Reply.MakeOkReply()
 }
