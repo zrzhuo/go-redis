@@ -11,8 +11,8 @@ import (
 
 // 一个bucket含有一个map和一把锁，访问map前需要获取锁
 type bucket[K comparable, V any] struct {
-	m     map[K]V      // 哈希表
-	mutex sync.RWMutex // 锁
+	m    map[K]V      // 哈希表
+	lock sync.RWMutex // 锁
 }
 
 // 随机获取一个key
@@ -21,8 +21,8 @@ func (bucket *bucket[K, V]) randomKey() []K {
 		panic("bucket is nil")
 	}
 	// 获取读锁
-	bucket.mutex.RLock()
-	defer bucket.mutex.RUnlock()
+	bucket.lock.RLock()
+	defer bucket.lock.RUnlock()
 
 	for key := range bucket.m {
 		return []K{key} // 做一层包装，以配合nil
@@ -33,9 +33,8 @@ func (bucket *bucket[K, V]) randomKey() []K {
 // ConcurrentDict 并发安全的Dict，其中包含若干个bucket，每个bucket都有自己独立的锁
 type ConcurrentDict[K comparable, V any] struct {
 	buckets   []*bucket[K, V]
-	bucketNum int32        // bucket个数
-	length    int32        // 包含键值对的个数
-	lock      sync.RWMutex // 锁
+	bucketNum int32 // bucket个数
+	length    int32 // 包含键值对的个数
 }
 
 func MakeConcurrentDict[K comparable, V any](num int32) *ConcurrentDict[K, V] {
@@ -67,7 +66,7 @@ func computeBucketNum(param int32) (size int32) {
 	if n < 0 {
 		return math.MaxInt32
 	}
-	return n + 1
+	return n + 1 // 返回的数一定是2的幂
 }
 
 // 根据key计算并获取该key应该存放的bucket
@@ -86,8 +85,8 @@ func (dict *ConcurrentDict[K, V]) ContainKey(key K) bool {
 	checkNilDict(dict)
 	bucket := dict.getBucket(key)
 	// 获取读锁
-	bucket.mutex.RLock()
-	defer bucket.mutex.RUnlock()
+	bucket.lock.RLock()
+	defer bucket.lock.RUnlock()
 
 	_, existed := bucket.m[key]
 	return existed
@@ -97,8 +96,8 @@ func (dict *ConcurrentDict[K, V]) Get(key K) (val V, existed bool) {
 	checkNilDict(dict)
 	bucket := dict.getBucket(key)
 	// 获取读锁
-	bucket.mutex.RLock()
-	defer bucket.mutex.RUnlock()
+	bucket.lock.RLock()
+	defer bucket.lock.RUnlock()
 
 	val, existed = bucket.m[key]
 	return
@@ -108,8 +107,8 @@ func (dict *ConcurrentDict[K, V]) Put(key K, val V) (result int) {
 	checkNilDict(dict)
 	bucket := dict.getBucket(key)
 	// 获取写锁
-	bucket.mutex.Lock()
-	defer bucket.mutex.Unlock()
+	bucket.lock.Lock()
+	defer bucket.lock.Unlock()
 
 	if _, ok := bucket.m[key]; ok {
 		bucket.m[key] = val
@@ -124,8 +123,8 @@ func (dict *ConcurrentDict[K, V]) PutIfAbsent(key K, val V) (result int) {
 	checkNilDict(dict)
 	bucket := dict.getBucket(key)
 	// 获取写锁
-	bucket.mutex.Lock()
-	defer bucket.mutex.Unlock()
+	bucket.lock.Lock()
+	defer bucket.lock.Unlock()
 	_, existed := bucket.m[key]
 	if existed {
 		return 0 // 已存在
@@ -140,8 +139,8 @@ func (dict *ConcurrentDict[K, V]) PutIfExists(key K, val V) (result int) {
 	checkNilDict(dict)
 	bucket := dict.getBucket(key)
 	// 获取写锁
-	bucket.mutex.Lock()
-	defer bucket.mutex.Unlock()
+	bucket.lock.Lock()
+	defer bucket.lock.Unlock()
 	_, existed := bucket.m[key]
 	if existed {
 		bucket.m[key] = val // 已存在
@@ -155,8 +154,8 @@ func (dict *ConcurrentDict[K, V]) Remove(key K) (result int) {
 	checkNilDict(dict)
 	bucket := dict.getBucket(key)
 	// 获取写锁
-	bucket.mutex.Lock()
-	defer bucket.mutex.Unlock()
+	bucket.lock.Lock()
+	defer bucket.lock.Unlock()
 	_, existed := bucket.m[key]
 	if existed {
 		delete(bucket.m, key)             // 已存在
@@ -170,11 +169,11 @@ func (dict *ConcurrentDict[K, V]) Remove(key K) (result int) {
 func (dict *ConcurrentDict[K, V]) ForEach(consumer Consumer[K, V]) {
 	checkNilDict(dict)
 	for _, bucket := range dict.buckets {
-		// 使用匿名函数是为了 bucket.mutex.RUnlock() 在本循环内即可执行
+		// 使用匿名函数是为了 bucket.lock.RUnlock() 在本循环内即可执行
 		func() {
-			// 只对一个bucket加锁
-			bucket.mutex.RLock()
-			defer bucket.mutex.RUnlock()
+			// 一个循环内只对一个bucket加锁
+			bucket.lock.RLock()
+			defer bucket.lock.RUnlock()
 			for key, val := range bucket.m {
 				continues := consumer(key, val)
 				if !continues {
@@ -187,9 +186,10 @@ func (dict *ConcurrentDict[K, V]) ForEach(consumer Consumer[K, V]) {
 
 func (dict *ConcurrentDict[K, V]) RealForEach(consumer Consumer[K, V]) {
 	checkNilDict(dict)
-	// 对整个Dict加锁
-	dict.lock.RLock()
-	defer dict.lock.RUnlock()
+	// 在ForEach之前需要获取所有bucket的锁
+	for _, bucket := range dict.buckets {
+		bucket.lock.RLock()
+	}
 	for _, bucket := range dict.buckets {
 		for key, val := range bucket.m {
 			continues := consumer(key, val)
@@ -197,6 +197,7 @@ func (dict *ConcurrentDict[K, V]) RealForEach(consumer Consumer[K, V]) {
 				return
 			}
 		}
+		bucket.lock.RUnlock() // 访问过的bucket可以立即解锁
 	}
 }
 

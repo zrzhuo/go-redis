@@ -12,7 +12,7 @@ import (
 	Reply "go-redis/resp/reply"
 	"go-redis/utils/logger"
 	_sync "go-redis/utils/sync"
-	"go-redis/utils/timewheel"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,8 +26,8 @@ const (
 type Database struct {
 	idx     int                              // 数据库编号
 	data    Dict.Dict[string, *_type.Entity] // 数据
-	ttl     Dict.Dict[string, time.Time]     // 超时时间
 	version Dict.Dict[string, int]           // 版本，用于watch
+	ttlTime Dict.Dict[string, time.Time]     // 超时时间
 	locker  *_sync.Locker                    // 锁，用于执行命令时为key加锁
 	ToAOF   func(_type.CmdLine)              // 添加命令到aof
 }
@@ -36,8 +36,8 @@ func MakeDatabase(idx int) *Database {
 	database := &Database{
 		idx:     idx,
 		data:    Dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
-		ttl:     Dict.MakeConcurrentDict[string, time.Time](ttlSize),
 		version: Dict.MakeConcurrentDict[string, int](dataSize),
+		ttlTime: Dict.MakeConcurrentDict[string, time.Time](ttlSize),
 		locker:  _sync.MakeLocker(lockerSize),
 		ToAOF:   func(line _type.CmdLine) {},
 	}
@@ -48,8 +48,8 @@ func MakeSimpleDatabase(idx int) *Database {
 	database := &Database{
 		idx:     idx,
 		data:    Dict.MakeSimpleDict[string, *_type.Entity](),
-		ttl:     Dict.MakeSimpleDict[string, time.Time](),
 		version: Dict.MakeSimpleDict[string, int](),
+		ttlTime: Dict.MakeSimpleDict[string, time.Time](),
 		locker:  _sync.MakeLocker(1),
 		ToAOF:   func(line _type.CmdLine) {},
 	}
@@ -59,21 +59,21 @@ func MakeSimpleDatabase(idx int) *Database {
 func (db *Database) Execute(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
 	cmdName := strings.ToLower(string(cmdLine[0])) // 获取命令
 	cmd, ok := CmdRouter[cmdName]
-	// 是否存在该命令
 	if !ok {
+		// 不存在该命令
 		return Reply.StandardError("unknown command '" + cmdName + "'")
 	}
-	// 参数个数是否满足要求
 	if !utils.CheckArgNum(cmd.Arity, cmdLine) {
+		// 参数个数不满足要求
 		return Reply.ArgNumError(cmdName)
 	}
 	args := _type.Args(cmdLine[1:])
 	// 获取有关的key
 	writeKeys, readKeys := cmd.keysFind(args)
-	// 对有关的key加锁
+	// 对有关的key加锁，这里的加锁解锁对相同的一组key是有固定顺序的，避免了产生死锁
 	db.lockKeys(writeKeys, readKeys)
 	defer db.unLockKeys(writeKeys, readKeys)
-	// 修改版本
+	// 修改版本，用于watch命令
 	db.AddVersion(writeKeys...)
 	// 执行
 	reply := cmd.Execute(db, args)
@@ -93,35 +93,35 @@ func (db *Database) unLockKeys(writeKeys []string, readKeys []string) {
 /* ----- Time To Live ----- */
 
 func (db *Database) SetExpire(key string, expire time.Time) {
-	db.ttl.Put(key, expire)
-	taskKey := "expire:" + key
+	db.ttlTime.Put(key, expire)
 	// 创建定时任务
-	timewheel.At(expire, taskKey, func() {
+	taskKey := strconv.FormatInt(int64(db.idx), 10) + ":" + key
+	TimeWheel.AddTask(expire.Sub(time.Now()), taskKey, func() {
 		keys := []string{key}
-		// 上锁
 		db.lockKeys(keys, nil)
 		defer db.unLockKeys(keys, nil)
-		logger.Info(fmt.Sprintf("key '%s' expired", key))
-		expireTime, ok := db.ttl.Get(key)
+		expireTime, ok := db.ttlTime.Get(key)
 		if !ok {
 			return
 		}
-		// 由于过期时间可能被更新，故需要再次检查是否过期
-		isExpired := time.Now().After(expireTime)
-		if isExpired {
-			db.Remove(key)
+		// 确保已经过期后再移除
+		if time.Now().After(expireTime) {
+			db.data.Remove(key)
+			db.version.Remove(key)
+			db.ttlTime.Remove(key)
+			logger.Info(fmt.Sprintf("key '%s' expired", key))
 		}
 	})
 }
 
 func (db *Database) Persist(key string) {
-	db.ttl.Remove(key)
-	taskKey := "expire:" + key
-	timewheel.Cancel(taskKey)
+	db.ttlTime.Remove(key)
+	taskKey := strconv.FormatInt(int64(db.idx), 10) + ":" + key
+	TimeWheel.RemoveTask(taskKey)
 }
 
 func (db *Database) GetExpireTime(key string) (time.Time, bool) {
-	expire, ok := db.ttl.Get(key)
+	expire, ok := db.ttlTime.Get(key)
 	if !ok {
 		return expire, false // 未设置过期时间
 	}
@@ -129,16 +129,11 @@ func (db *Database) GetExpireTime(key string) (time.Time, bool) {
 }
 
 func (db *Database) IsExpired(key string) bool {
-	expire, ok := db.ttl.Get(key)
+	expire, ok := db.ttlTime.Get(key)
 	if !ok {
 		return false // 未设置过期时间
 	}
-	// 再次检查是否过期
-	isExpired := time.Now().After(expire)
-	if isExpired {
-		db.Remove(key) // 过期，移除key
-	}
-	return isExpired
+	return time.Now().After(expire)
 }
 
 /* ----- version ----- */
@@ -185,9 +180,10 @@ func (db *Database) PutIfAbsent(key string, entity *_type.Entity) int {
 
 func (db *Database) Remove(key string) {
 	db.data.Remove(key)
-	db.ttl.Remove(key)
-	taskKey := "expire:" + key
-	timewheel.Cancel(taskKey)
+	db.version.Remove(key)
+	db.ttlTime.Remove(key)
+	taskKey := strconv.FormatInt(int64(db.idx), 10) + ":" + key
+	TimeWheel.RemoveTask(taskKey)
 }
 
 func (db *Database) Removes(keys ...string) (count int) {
@@ -205,7 +201,7 @@ func (db *Database) Removes(keys ...string) (count int) {
 func (db *Database) ForEach(operate func(key string, entity *_type.Entity, expire *time.Time) bool) {
 	consumer := func(key string, entity *_type.Entity) bool {
 		var expire *time.Time = nil
-		expireTime, ok := db.ttl.Get(key)
+		expireTime, ok := db.ttlTime.Get(key)
 		if ok {
 			expire = &expireTime
 		}
@@ -216,7 +212,8 @@ func (db *Database) ForEach(operate func(key string, entity *_type.Entity, expir
 
 func (db *Database) Flush() {
 	db.data.Clear()
-	db.ttl.Clear()
+	db.ttlTime.Clear()
+	db.version.Clear()
 	db.locker = _sync.MakeLocker(lockerSize) // 重置锁
 }
 

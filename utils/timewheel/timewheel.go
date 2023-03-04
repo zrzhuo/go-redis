@@ -6,172 +6,150 @@ import (
 	"time"
 )
 
-type location struct {
-	slot  int
-	etask *list.Element
-}
-
-// TimeWheel can execute job after waiting given duration
-type TimeWheel struct {
-	interval time.Duration
-	ticker   *time.Ticker
-	slots    []*list.List
-
-	timer             map[string]*location
-	currentPos        int
-	slotNum           int
-	addTaskChannel    chan task
-	removeTaskChannel chan string
-	stopChannel       chan bool
-}
-
+// 代表一个定时任务
 type task struct {
-	delay  time.Duration
-	circle int
-	key    string
-	job    func()
+	key    string        // task的标识
+	job    func()        // task实际要执行的函数
+	delay  time.Duration // 延迟执行的时间
+	circle int           // 延迟的轮数
 }
 
-// New creates a new time wheel
-func New(interval time.Duration, slotNum int) *TimeWheel {
+// 用于定位一个task
+type taskLoc struct {
+	idx int           // task所处的list
+	ele *list.Element // task所位于的Element
+}
+
+type TimeWheel struct {
+	ticker   *time.Ticker
+	interval time.Duration // 每格的时间跨度
+	currSlot int           // 当前指向的时间格
+
+	tasks     map[string]*taskLoc // 记录task在时间轮中所处的位置
+	slots     []*list.List        // 时间格数组，实际存放task的list
+	slotCount int                 // slot个数
+
+	addCh    chan *task  // 添加任务
+	removeCh chan string // 移除任务
+	closeCh  chan bool   // 终止信号
+}
+
+func MakeTimeWheel(interval time.Duration, slotNum int) *TimeWheel {
 	if interval <= 0 || slotNum <= 0 {
-		return nil
+		panic("illegal interval or slotNum")
 	}
 	tw := &TimeWheel{
-		interval:          interval,
-		slots:             make([]*list.List, slotNum),
-		timer:             make(map[string]*location),
-		currentPos:        0,
-		slotNum:           slotNum,
-		addTaskChannel:    make(chan task),
-		removeTaskChannel: make(chan string),
-		stopChannel:       make(chan bool),
+		interval:  interval,
+		currSlot:  0,
+		tasks:     make(map[string]*taskLoc),
+		slots:     make([]*list.List, slotNum),
+		slotCount: slotNum,
+		addCh:     make(chan *task),
+		removeCh:  make(chan string),
+		closeCh:   make(chan bool),
 	}
-	tw.initSlots()
-
+	for i := 0; i < tw.slotCount; i++ {
+		tw.slots[i] = list.New()
+	}
 	return tw
 }
 
-func (tw *TimeWheel) initSlots() {
-	for i := 0; i < tw.slotNum; i++ {
-		tw.slots[i] = list.New()
-	}
-}
-
-// Start starts ticker for time wheel
-func (tw *TimeWheel) Start() {
-	tw.ticker = time.NewTicker(tw.interval)
-	go tw.start()
-}
-
-// Stop stops the time wheel
-func (tw *TimeWheel) Stop() {
-	tw.stopChannel <- true
-}
-
-// AddJob add new job into pending queue
-func (tw *TimeWheel) AddJob(delay time.Duration, key string, job func()) {
+func (tw *TimeWheel) AddTask(delay time.Duration, key string, job func()) {
 	if delay < 0 {
 		return
 	}
-	tw.addTaskChannel <- task{delay: delay, key: key, job: job}
-}
-
-// RemoveJob add remove job from pending queue
-// if job is done or not found, then nothing happened
-func (tw *TimeWheel) RemoveJob(key string) {
-	if key == "" {
-		return
+	t := &task{
+		key:   key,
+		job:   job,
+		delay: delay,
 	}
-	tw.removeTaskChannel <- key
+	tw.addCh <- t
 }
 
-func (tw *TimeWheel) start() {
-	for {
-		select {
-		case <-tw.ticker.C:
-			tw.tickHandler()
-		case task := <-tw.addTaskChannel:
-			tw.addTask(&task)
-		case key := <-tw.removeTaskChannel:
-			tw.removeTask(key)
-		case <-tw.stopChannel:
-			tw.ticker.Stop()
-			return
+func (tw *TimeWheel) RemoveTask(key string) {
+	tw.removeCh <- key
+}
+
+func (tw *TimeWheel) Run() {
+	tw.ticker = time.NewTicker(tw.interval)
+	go func() {
+		for {
+			select {
+			case <-tw.ticker.C:
+				tw.scanSlot() // 每次tick扫描一个slot
+			case t := <-tw.addCh:
+				tw.addTask(t) // 添加任务
+			case key := <-tw.removeCh:
+				tw.removeTask(key) // 移除任务
+			case <-tw.closeCh:
+				tw.ticker.Stop() // 停止时间轮
+				return
+			}
 		}
-	}
+	}()
 }
 
-func (tw *TimeWheel) tickHandler() {
-	l := tw.slots[tw.currentPos]
-	if tw.currentPos == tw.slotNum-1 {
-		tw.currentPos = 0
-	} else {
-		tw.currentPos++
-	}
-	go tw.scanAndRunTask(l)
+func (tw *TimeWheel) Close() {
+	tw.closeCh <- true
 }
 
-func (tw *TimeWheel) scanAndRunTask(l *list.List) {
-	for e := l.Front(); e != nil; {
-		task := e.Value.(*task)
-		if task.circle > 0 {
-			task.circle--
-			e = e.Next()
-			continue
-		}
-
-		go func() {
-			defer func() {
-				if err := recover(); err != nil {
-					logger.Error(err)
-				}
+func (tw *TimeWheel) scanSlot() {
+	slot := tw.slots[tw.currSlot]
+	go func() {
+		ele := slot.Front()
+		for ele != nil {
+			t := ele.Value.(*task)
+			// 检查circle是否已经为0
+			if t.circle > 0 {
+				t.circle--
+				ele = ele.Next()
+				continue
+			}
+			// 执行task
+			go func() {
+				// 异常处理
+				defer func() {
+					if err := recover(); err != nil {
+						logger.Error(err)
+					}
+				}()
+				t.job()
 			}()
-			job := task.job
-			job()
-		}()
-		next := e.Next()
-		l.Remove(e)
-		if task.key != "" {
-			delete(tw.timer, task.key)
+			// 移除当前task
+			next := ele.Next()
+			slot.Remove(ele)
+			delete(tw.tasks, t.key)
+			ele = next
 		}
-		e = next
-	}
+	}()
+	tw.currSlot = (tw.currSlot + 1) % tw.slotCount // 更新当前slot
 }
 
-func (tw *TimeWheel) addTask(task *task) {
-	pos, circle := tw.getPositionAndCircle(task.delay)
-	task.circle = circle
-
-	e := tw.slots[pos].PushBack(task)
-	loc := &location{
-		slot:  pos,
-		etask: e,
+func (tw *TimeWheel) addTask(t *task) {
+	delay := int(t.delay)
+	interval := int(tw.interval)
+	t.circle = delay / interval / tw.slotCount           // 设置task的circle
+	idx := (delay/interval + tw.currSlot) % tw.slotCount // 计算该task应该存放的时间格
+	// 加入对应的时间格
+	ele := tw.slots[idx].PushBack(t)
+	loc := &taskLoc{
+		idx: idx,
+		ele: ele,
 	}
-	if task.key != "" {
-		_, ok := tw.timer[task.key]
-		if ok {
-			tw.removeTask(task.key)
-		}
+	// 若该task已经存在，先移除该task
+	key := t.key
+	_, ok := tw.tasks[key]
+	if ok {
+		tw.removeTask(key)
 	}
-	tw.timer[task.key] = loc
-}
-
-func (tw *TimeWheel) getPositionAndCircle(d time.Duration) (pos int, circle int) {
-	delaySeconds := int(d.Seconds())
-	intervalSeconds := int(tw.interval.Seconds())
-	circle = int(delaySeconds / intervalSeconds / tw.slotNum)
-	pos = int(tw.currentPos+delaySeconds/intervalSeconds) % tw.slotNum
-
-	return
+	tw.tasks[key] = loc
 }
 
 func (tw *TimeWheel) removeTask(key string) {
-	pos, ok := tw.timer[key]
+	loc, ok := tw.tasks[key]
 	if !ok {
 		return
 	}
-	l := tw.slots[pos.slot]
-	l.Remove(pos.etask)
-	delete(tw.timer, key)
+	tw.slots[loc.idx].Remove(loc.ele) // 从对应的时间格移除
+	delete(tw.tasks, key)             // 从tasks中移除
 }

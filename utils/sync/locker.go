@@ -6,75 +6,76 @@ import (
 	"sync"
 )
 
+// Locker 的本质是一组mutex
 type Locker struct {
 	table []*sync.RWMutex
 }
 
-func MakeLocker(tableSize int) *Locker {
-	locks := &Locker{
-		table: make([]*sync.RWMutex, tableSize),
+func MakeLocker(size int) *Locker {
+	locker := &Locker{
+		table: make([]*sync.RWMutex, size),
 	}
-	for i := 0; i < tableSize; i++ {
-		locks.table[i] = &sync.RWMutex{}
+	for i := 0; i < size; i++ {
+		locker.table[i] = &sync.RWMutex{}
 	}
-	return locks
+	return locker
 }
 
-func (locker *Locker) spread(hashCode uint32) uint32 {
-	if locker == nil {
-		panic("locker is nil")
-	}
-	tableSize := uint32(len(locker.table))
-	return (tableSize - 1) & hashCode
+// 计算指定key应对应的锁的下标
+func (locker *Locker) computeIndex(key string) uint32 {
+	hashcode := fnv.Fnv32(key) // fnv32计算hash值
+	size := uint32(len(locker.table))
+	return (size - 1) & hashcode
+}
+
+func (locker *Locker) getMutex(key string) *sync.RWMutex {
+	idx := locker.computeIndex(key)
+	return locker.table[idx]
 }
 
 /* ---- Single Lock ----- */
 
 func (locker *Locker) Lock(key string) {
-	idx := locker.spread(fnv.Fnv32(key))
-	locker.table[idx].Lock()
+	locker.getMutex(key).Lock()
 }
 
 func (locker *Locker) UnLock(key string) {
-	idx := locker.spread(fnv.Fnv32(key))
-	locker.table[idx].Unlock()
+	locker.getMutex(key).Unlock()
 }
 
 func (locker *Locker) RLock(key string) {
-	idx := locker.spread(fnv.Fnv32(key))
-	locker.table[idx].RLock()
+	locker.getMutex(key).RLock()
 }
 
 func (locker *Locker) RUnLock(key string) {
-	idx := locker.spread(fnv.Fnv32(key))
-	locker.table[idx].RUnlock()
+	locker.getMutex(key).RUnlock()
 }
 
 /* ---- Batch Lock ----- */
 
 func (locker *Locker) Locks(keys ...string) {
-	indices := locker.toIndices(keys, false)
+	indices := locker.toIndices(keys, false) // 正序上锁
 	for _, index := range indices {
 		locker.table[index].Lock()
 	}
 }
 
 func (locker *Locker) UnLocks(keys ...string) {
-	indices := locker.toIndices(keys, true)
+	indices := locker.toIndices(keys, true) // 反序解锁
 	for _, index := range indices {
 		locker.table[index].Unlock()
 	}
 }
 
 func (locker *Locker) RLocks(keys ...string) {
-	indices := locker.toIndices(keys, false)
+	indices := locker.toIndices(keys, false) // 正序上锁
 	for _, index := range indices {
 		locker.table[index].RLock()
 	}
 }
 
 func (locker *Locker) RUnLocks(keys ...string) {
-	indices := locker.toIndices(keys, true)
+	indices := locker.toIndices(keys, true) // 反序解锁
 	for _, index := range indices {
 		locker.table[index].RUnlock()
 	}
@@ -82,36 +83,40 @@ func (locker *Locker) RUnLocks(keys ...string) {
 
 /* ---- Lock Keys ----- */
 
+// LockKeys 给定一组write key和一组read key，按序进行上锁
 func (locker *Locker) LockKeys(writeKeys []string, readKeys []string) {
 	keys := append(writeKeys, readKeys...)
 	indices := locker.toIndices(keys, false)
-	writeSet := make(map[uint32]struct{})
+	writeSet := make(map[uint32]bool)
 	for _, key := range writeKeys {
-		idx := locker.spread(fnv.Fnv32(key))
-		writeSet[idx] = struct{}{}
+		idx := locker.computeIndex(key)
+		writeSet[idx] = true
 	}
 	for _, idx := range indices {
-		if _, isWrite := writeSet[idx]; isWrite {
-			locker.table[idx].Lock()
+		_, isWrite := writeSet[idx]
+		if isWrite {
+			locker.table[idx].Lock() // write key
 		} else {
-			locker.table[idx].RLock()
+			locker.table[idx].RLock() // read key
 		}
 	}
 }
 
+// UnLockKeys 给定一组write key和一组read key，按序进行解锁
 func (locker *Locker) UnLockKeys(writeKeys []string, readKeys []string) {
 	keys := append(writeKeys, readKeys...)
 	indices := locker.toIndices(keys, true)
-	writeSet := make(map[uint32]struct{})
+	writeSet := make(map[uint32]bool)
 	for _, key := range writeKeys {
-		idx := locker.spread(fnv.Fnv32(key))
-		writeSet[idx] = struct{}{}
+		idx := locker.computeIndex(key)
+		writeSet[idx] = true
 	}
 	for _, idx := range indices {
-		if _, isWrite := writeSet[idx]; isWrite {
-			locker.table[idx].Unlock()
+		_, isWrite := writeSet[idx]
+		if isWrite {
+			locker.table[idx].Unlock() // write key
 		} else {
-			locker.table[idx].RUnlock()
+			locker.table[idx].RUnlock() // read key
 		}
 	}
 }
@@ -120,13 +125,16 @@ func (locker *Locker) UnLockKeys(writeKeys []string, readKeys []string) {
 func (locker *Locker) toIndices(keys []string, reverse bool) []uint32 {
 	idxMap := make(map[uint32]bool)
 	for _, key := range keys {
-		idx := locker.spread(fnv.Fnv32(key))
+		idx := locker.computeIndex(key)
 		idxMap[idx] = true
 	}
-	indices := make([]uint32, 0, len(idxMap))
+	indices := make([]uint32, len(idxMap))
+	i := 0
 	for idx := range idxMap {
-		indices = append(indices, idx)
+		indices[i] = idx
+		i++
 	}
+	// 排序，实现固定顺序上锁，避免因争夺锁而造成死锁
 	sort.Slice(indices, func(i, j int) bool {
 		if !reverse {
 			return indices[i] < indices[j]
