@@ -217,7 +217,7 @@ func (db *Database) Flush() {
 	db.locker = _sync.MakeLocker(lockerSize) // 重置锁
 }
 
-/* ----- Get Entity ----- */
+/* ----- GetScore Entity ----- */
 
 func (db *Database) GetString(key string) ([]byte, _interface.Reply) {
 	entity, exists := db.Get(key)
@@ -279,7 +279,7 @@ func (db *Database) GetDict(key string) (Dict.Dict[string, []byte], _interface.E
 	return dict, nil
 }
 
-/* ----- Get or Init Entity ----- */
+/* ----- GetScore or Init Entity ----- */
 
 func (db *Database) GetOrInitList(key string) (list List.List[[]byte], isNew bool, errReply _interface.ErrorReply) {
 	list, errReply = db.GetList(key)

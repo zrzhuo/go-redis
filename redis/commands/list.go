@@ -254,29 +254,10 @@ func execLRange(db *redis.Database, args _type.Args) _interface.Reply {
 	if list == nil {
 		return Reply.MakeEmptyArrayReply()
 	}
-	start, stop, size := int(first), int(second), list.Len()
-	// 解析start
-	if start < -size {
-		start = 0
-	} else if start < 0 {
-		start = size + start
-	} else if start >= size {
+	left, right := utils.ParseRange(int(first), int(second), list.Len())
+	if left < 0 {
 		return Reply.MakeNilBulkReply()
 	}
-	// 解析stop
-	if stop < -size {
-		stop = 0
-	} else if stop < 0 {
-		stop = size + stop + 1
-	} else if stop < size {
-		stop = stop + 1
-	} else {
-		stop = size
-	}
-	// stop小于start
-	if stop < start {
-		stop = start
-	}
-	vals := list.Range(start, stop)
+	vals := list.Range(left, right+1) // 左闭右闭
 	return Reply.MakeArrayReply(vals)
 }

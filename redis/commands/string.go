@@ -16,7 +16,7 @@ func init() {
 	redis.RegisterCommand("Set", execSet, utils.WriteFirst, -3, redis.ReadWrite)
 	redis.RegisterCommand("SetNX", execSetNX, utils.WriteFirst, 3, redis.ReadWrite)
 	redis.RegisterCommand("SetEX", execSetEX, utils.WriteFirst, 4, redis.ReadWrite)
-	redis.RegisterCommand("Get", execGet, utils.ReadFirst, 2, redis.ReadOnly)
+	redis.RegisterCommand("GetScore", execGet, utils.ReadFirst, 2, redis.ReadOnly)
 	redis.RegisterCommand("GetEX", execGetEX, utils.WriteFirst, -2, redis.ReadWrite)
 	redis.RegisterCommand("GetSet", execGetSet, utils.WriteFirst, 3, redis.ReadWrite)
 	redis.RegisterCommand("GetDel", execGetDel, utils.WriteFirst, 2, redis.ReadWrite)
@@ -331,12 +331,12 @@ func execMGet(db *redis.Database, args _type.Args) _interface.Reply {
 }
 
 func execGetRange(db *redis.Database, args _type.Args) _interface.Reply {
-	key, start, end := string(args[0]), string(args[1]), string(args[2])
-	left, err := strconv.ParseInt(start, 10, 64)
+	key := string(args[0])
+	start, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
 		return Reply.StandardError("value is not an integer or out of range")
 	}
-	right, err := strconv.ParseInt(end, 10, 64)
+	end, err := strconv.ParseInt(string(args[2]), 10, 64)
 	if err != nil {
 		return Reply.StandardError("value is not an integer or out of range")
 	}
@@ -347,11 +347,11 @@ func execGetRange(db *redis.Database, args _type.Args) _interface.Reply {
 	if val == nil {
 		return Reply.MakeEmptyBulkReply()
 	}
-	L, R := utils.ConvertRange(int(left), int(right), len(val))
-	if L < 0 {
+	left, right := utils.ParseRange(int(start), int(end), len(val))
+	if left < 0 {
 		return Reply.MakeEmptyBulkReply()
 	}
-	return Reply.MakeBulkReply(val[L:R])
+	return Reply.MakeBulkReply(val[left : right+1])
 }
 
 func execSetRange(db *redis.Database, args _type.Args) _interface.Reply {

@@ -41,25 +41,27 @@ func ParseCmds(line []byte) ([][]byte, error) {
 	return cmdLine, nil
 }
 
-func ConvertRange(start int, end int, size int) (int, int) {
+// ParseRange 解析边界，返回的边界一律符合左闭右开[a, b)
+func ParseRange(start int, end int, size int) (int, int) {
+	// 解析start
 	if start < -size {
-		return -1, -1
+		start = 0
 	} else if start < 0 {
 		start = size + start
 	} else if start >= size {
-		return -1, -1
+		return -1, -1 // 不允许start超出size-1
 	}
+	// 解析stop
 	if end < -size {
-		return -1, -1
+		end = 0
 	} else if end < 0 {
-		end = size + end + 1
-	} else if end < size {
-		end = end + 1
-	} else {
-		end = size
+		end = size + end
+	} else if end >= size {
+		end = size // 允许end超出size-1
 	}
-	if start > end {
-		return -1, -1
+	// stop小于start
+	if end < start {
+		end = start
 	}
 	return start, end
 }

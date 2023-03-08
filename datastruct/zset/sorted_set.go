@@ -6,8 +6,8 @@ import (
 )
 
 type SortedSet[T comparable] struct {
-	dict     Dict.Dict[T, float64]
-	skiplist *SkipList[T]
+	dict     Dict.Dict[T, float64] // 用于快速查找
+	skiplist *SkipList[T]          // 用于保持有序性的跳表
 }
 
 func MakeSortedSet[T comparable](comp Compare[T]) ZSet[T] {
@@ -19,14 +19,21 @@ func MakeSortedSet[T comparable](comp Compare[T]) ZSet[T] {
 
 func (set *SortedSet[T]) Len() int {
 	if set == nil {
-		panic("this SortedSet is nil.")
+		panic("this SortedSet is nil")
 	}
 	return set.dict.Len()
 }
 
+func (set *SortedSet[T]) RangeLen(min float64, max float64) int {
+	if set == nil {
+		panic("this SortedSet is nil")
+	}
+	return set.skiplist.CountRange(min, max)
+}
+
 func (set *SortedSet[T]) Add(member T, score float64) int {
 	if set == nil {
-		panic("this SortedSet is nil.")
+		panic("this SortedSet is nil")
 	}
 	oldScore, existed := set.dict.Get(member)
 	set.dict.Put(member, score)
@@ -41,9 +48,55 @@ func (set *SortedSet[T]) Add(member T, score float64) int {
 	return 1
 }
 
-func (set *SortedSet[T]) Get(member T) (float64, bool) {
+func (set *SortedSet[T]) Remove(member T) int {
 	if set == nil {
-		panic("this SortedSet is nil.")
+		panic("this SortedSet is nil")
+	}
+	score, exited := set.dict.Get(member)
+	if !exited {
+		return 0
+	}
+	set.dict.Remove(member)
+	set.skiplist.Remove(member, score)
+	return 1
+}
+
+func (set *SortedSet[T]) RemoveRangeByScore(min float64, max float64) int {
+	if set == nil {
+		panic("this SortedSet is nil")
+	}
+	nodes := set.skiplist.RemoveRangeByScore(min, max, set.Len())
+	for _, node := range nodes {
+		set.dict.Remove(node.Obj)
+	}
+	return len(nodes)
+}
+
+func (set *SortedSet[T]) RemoveRangeByRank(start int, stop int) int {
+	if set == nil {
+		panic("this SortedSet is nil")
+	}
+	nodes := set.skiplist.RemoveRangeByRank(start, stop)
+	for _, node := range nodes {
+		set.dict.Remove(node.Obj)
+	}
+	return len(nodes)
+}
+
+func (set *SortedSet[T]) Contains(member T) bool {
+	if set == nil {
+		panic("this SortedSet is nil")
+	}
+	_, existed := set.dict.Get(member)
+	if !existed {
+		return false
+	}
+	return true
+}
+
+func (set *SortedSet[T]) GetScore(member T) (float64, bool) {
+	if set == nil {
+		panic("this SortedSet is nil")
 	}
 	score, existed := set.dict.Get(member)
 	if !existed {
@@ -52,37 +105,24 @@ func (set *SortedSet[T]) Get(member T) (float64, bool) {
 	return score, true
 }
 
-func (set *SortedSet[T]) Remove(member T) bool {
+func (set *SortedSet[T]) GetRank(member T, desc bool) (int, bool) {
 	if set == nil {
-		panic("this SortedSet is nil.")
-	}
-	score, exited := set.dict.Get(member)
-	if !exited {
-		return false
-	}
-	set.dict.Remove(member)
-	set.skiplist.Remove(member, score)
-	return true
-}
-
-func (set *SortedSet[T]) GetRank(member T, desc bool) int {
-	if set == nil {
-		panic("this SortedSet is nil.")
+		panic("this SortedSet is nil")
 	}
 	score, existed := set.dict.Get(member)
 	if !existed {
-		return -1
+		return -1, false
 	}
 	rank := set.skiplist.GetRank(member, score)
 	if desc {
-		return set.Len() - 1 - rank
+		return set.Len() - 1 - rank, true
 	}
-	return rank
+	return rank, true
 }
 
 func (set *SortedSet[T]) ForEach(startRank int, stopRank int, desc bool, consumer Consumer[T]) {
 	if set == nil {
-		panic("this SortedSet is nil.")
+		panic("this SortedSet is nil")
 	}
 	size := set.Len()
 	if startRank < 0 || startRank >= size {
