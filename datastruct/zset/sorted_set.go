@@ -80,25 +80,25 @@ func (set *SortedSet[T]) GetRank(member T, desc bool) int {
 	return rank
 }
 
-func (set *SortedSet[T]) ForEach(start int, stop int, desc bool, consumer Consumer[T]) {
+func (set *SortedSet[T]) ForEach(startRank int, stopRank int, desc bool, consumer Consumer[T]) {
 	if set == nil {
 		panic("this SortedSet is nil.")
 	}
 	size := set.Len()
-	if start < 0 || start >= size {
-		panic(fmt.Sprintf("the start index %d out of bound", start))
+	if startRank < 0 || startRank >= size {
+		panic(fmt.Sprintf("the startRank index %d out of bound", startRank))
 	}
-	if stop < start || start > size {
-		panic(fmt.Sprintf("the stop index %d out of bound", stop))
+	if stopRank < startRank || startRank > size {
+		panic(fmt.Sprintf("the stopRank index %d out of bound", stopRank))
 	}
-	var node *skipNode[T]
+	var node *SkipNode[T]
 	if !desc {
-		node = set.skiplist.getNodeByRank(start)
+		node = set.skiplist.GetNodeByRank(startRank)
 	} else {
-		node = set.skiplist.getNodeByRank(size - 1 - start)
+		node = set.skiplist.GetNodeByRank(size - 1 - startRank)
 	}
-	for i := 0; i < stop-start; i++ {
-		if consumer(node.Member, node.Score) {
+	for i := 0; i < stopRank-startRank; i++ {
+		if consumer(node.Obj, node.Score) {
 			if !desc {
 				node = node.levels[0].next
 			} else {

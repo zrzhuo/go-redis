@@ -5,13 +5,13 @@ import (
 )
 
 func TestRandomLevel(t *testing.T) {
-	m := make(map[int16]int)
+	counter := make(map[int16]int)
 	for i := 0; i < 10000; i++ {
 		level := randomLevel()
-		m[level]++
+		counter[level]++
 	}
 	for i := 0; i <= maxLevel; i++ {
-		t.Logf("levels %d, count %d", i, m[int16(i)])
+		t.Logf("levels %d, count %d", i, counter[int16(i)])
 	}
 }
 

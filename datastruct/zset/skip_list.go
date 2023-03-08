@@ -2,6 +2,7 @@ package zset
 
 import (
 	"fmt"
+	"math"
 	"math/bits"
 	"math/rand"
 )
@@ -11,35 +12,35 @@ const (
 )
 
 type skipLevel[T comparable] struct {
-	next *skipNode[T] // 指向该层索引的下一个结点
-	span int          // 该层索引的跨度
+	next *SkipNode[T] // 前进指针，指向该层索引的下一个结点
+	span int          // 跨度，距离下一个结点距离
 }
 
-type skipNode[T comparable] struct {
-	Member T
+type SkipNode[T comparable] struct {
+	Obj    T
 	Score  float64
-	prev   *skipNode[T]    // 指向前一个结点
+	prev   *SkipNode[T]    // 后退指针，指向前一个结点
 	levels []*skipLevel[T] // 索引，level[0]跨度为1
 }
 
 type SkipList[T comparable] struct {
-	header *skipNode[T] // 虚拟结点，其levels中的next指向实际结点，score为最小值0
-	tail   *skipNode[T] // 直接指向最后一个结点
-	size   int          // 结点数量
-	level  int16        // 最大索引层级
-	comp   Compare[T]   // 比较member的函数
+	header *SkipNode[T] // 虚拟结点，其levels中的next指向第一个实际结点，score为最小值
+	tail   *SkipNode[T] // 直接指向最后一个实际结点
+	length int          // 结点数量
+	level  int16        // 最大索引层级数，不包括虚拟头结点
+	comp   Compare[T]   // 比较T的函数，用于Score相等时比较Obj
 }
 
-func newSkipNode[T comparable](member T, score float64, level int16) *skipNode[T] {
-	node := &skipNode[T]{
-		Member: member,
+func newSkipNode[T comparable](obj T, score float64, level int16) *SkipNode[T] {
+	node := &SkipNode[T]{
+		Obj:    obj,
 		Score:  score,
 		levels: make([]*skipLevel[T], level),
 	}
 	for i := range node.levels {
 		node.levels[i] = &skipLevel[T]{
 			next: nil,
-			span: 0,
+			span: 0, // next为nil时，span应该为0
 		}
 	}
 	return node
@@ -48,13 +49,14 @@ func newSkipNode[T comparable](member T, score float64, level int16) *skipNode[T
 func MakeSkiplist[T comparable](comp Compare[T]) *SkipList[T] {
 	var null T
 	return &SkipList[T]{
-		header: newSkipNode[T](null, 0, maxLevel), // 头结点的score为0
-		tail:   nil,                               // 尾指针指向nil
-		level:  1,                                 // 初始为1
-		comp:   comp,                              // 比较函数
+		header: newSkipNode[T](null, math.SmallestNonzeroFloat64, maxLevel), // 头结点的score设为最小值
+		tail:   nil,                                                         // 尾指针指向nil
+		level:  1,                                                           // 初始为1
+		comp:   comp,                                                        // 比较函数
 	}
 }
 
+// 随机生成一个[1,maxLevel]之间的整数，满足幂次定律，即越大的数生成概率越小（长尾）
 func randomLevel() int16 {
 	total := uint64(1)<<uint64(maxLevel) - 1
 	k := rand.Uint64() % total
@@ -63,19 +65,22 @@ func randomLevel() int16 {
 
 func (sl *SkipList[T]) print() {
 	for curr := sl.header.levels[0].next; curr != nil; curr = curr.levels[0].next {
-		fmt.Println(curr.Member, curr.Score)
+		fmt.Println(curr.Obj, curr.Score)
 	}
 }
 
 func (sl *SkipList[T]) Len() int {
 	if sl == nil {
-		panic("this SkipList is nil.")
+		panic("this SkipList is nil")
 	}
-	return sl.size
+	return sl.length
 }
 
-func (sl *SkipList[T]) Insert(member T, score float64) {
-	prevs := make([]*skipNode[T], maxLevel) // 记录新结点在每一层中的插入位置，即新结点在该层索引中的前置结点
+func (sl *SkipList[T]) Insert(obj T, score float64) {
+	if sl == nil {
+		panic("this SkipList is nil")
+	}
+	prevs := make([]*SkipNode[T], maxLevel) // 记录新结点在每一层中的插入位置，即新结点在该层索引中的前置结点
 	ranks := make([]int, maxLevel)          // 记录新结点在每一层中的rank（第一个实际结点的rank为0）
 
 	// 1、寻找插入位置
@@ -86,12 +91,12 @@ func (sl *SkipList[T]) Insert(member T, score float64) {
 		} else {
 			ranks[i] = ranks[i+1] // 初始化为上一层的rank
 		}
-		// prevNode.levels[i] != nil，标志着preNode结点是否被该层索引
+		// prevNode.levels[i] != nil，标志着preNode结点被该层索引
 		if prevNode.levels[i] != nil {
 			for ptr := prevNode.levels[i].next; ptr != nil; ptr = ptr.levels[i].next {
-				if ptr.Score < score || (ptr.Score == score && sl.comp(ptr.Member, member) == -1) {
+				if ptr.Score < score || (ptr.Score == score && sl.comp(ptr.Obj, obj) == -1) {
 					// 当前结点的score小于新结点score || score相等，但当前结点的member值小于新结点member
-					ranks[i] += prevNode.levels[i].span // 更新ranks
+					ranks[i] += prevNode.levels[i].span // 累计rank
 					prevNode = prevNode.levels[i].next  // 向后移动
 				} else {
 					break // 此时，prevNode结点即为新结点在该层的前置结点
@@ -102,14 +107,14 @@ func (sl *SkipList[T]) Insert(member T, score float64) {
 	}
 
 	// 2、建立新结点
-	level := randomLevel()
-	newNode := newSkipNode(member, score, level)
+	level := randomLevel() // 随机层高
+	newNode := newSkipNode(obj, score, level)
 	if level > sl.level {
 		// 此时需要新增索引层
 		for i := sl.level; i < level; i++ {
-			sl.header.levels[i].span = sl.size // 新增的索引层中，header的span都为结点总数
-			prevs[i] = sl.header               // 新增的索引层中，当前结点的前置结点都为header
-			ranks[i] = 0                       // 新增的索引层中，当前结点的的rank都为0
+			sl.header.levels[i].span = sl.length // 新增的索引层中，header的span都为结点总数
+			prevs[i] = sl.header                 // 新增的索引层中，当前结点的前置结点都为header
+			ranks[i] = 0                         // 新增的索引层中，当前结点的的rank都为0
 		}
 		sl.level = level
 	}
@@ -118,7 +123,7 @@ func (sl *SkipList[T]) Insert(member T, score float64) {
 	sl.insertNode(newNode, prevs, ranks)
 }
 
-func (sl *SkipList[T]) insertNode(newNode *skipNode[T], prevs []*skipNode[T], ranks []int) {
+func (sl *SkipList[T]) insertNode(newNode *SkipNode[T], prevs []*SkipNode[T], ranks []int) {
 	level := int16(len(newNode.levels))
 	// 连接next、更新span
 	for i := int16(0); i < level; i++ {
@@ -143,16 +148,19 @@ func (sl *SkipList[T]) insertNode(newNode *skipNode[T], prevs []*skipNode[T], ra
 		newNode.levels[0].next.prev = newNode
 	}
 	// 长度加1
-	sl.size++
+	sl.length++
 }
 
 func (sl *SkipList[T]) Remove(member T, score float64) bool {
+	if sl == nil {
+		panic("this SkipList is nil")
+	}
 	// 寻找删除位置
-	prevs := make([]*skipNode[T], maxLevel) // 记录目标结点在每一层索引中的前置结点
+	prevs := make([]*SkipNode[T], maxLevel) // 记录目标结点在每一层索引中的前置结点
 	prevNode := sl.header
 	for i := sl.level - 1; i >= 0; i-- {
 		for ptr := prevNode.levels[i].next; ptr != nil; ptr = ptr.levels[i].next {
-			if ptr.Score < score || (ptr.Score == score && sl.comp(ptr.Member, member) == -1) {
+			if ptr.Score < score || (ptr.Score == score && sl.comp(ptr.Obj, member) == -1) {
 				// 当前结点的score小于新结点score || score相等，但当前结点的member值小于目标结点member
 				prevNode = prevNode.levels[i].next
 			} else {
@@ -162,7 +170,7 @@ func (sl *SkipList[T]) Remove(member T, score float64) bool {
 		prevs[i] = prevNode
 	}
 	tarNode := prevs[0].levels[0].next
-	if tarNode != nil && tarNode.Score == score && sl.comp(tarNode.Member, member) == 0 {
+	if tarNode != nil && tarNode.Score == score && sl.comp(tarNode.Obj, member) == 0 {
 		// 找到目标结点，删除之
 		sl.removeNode(tarNode, prevs)
 		return true
@@ -170,7 +178,7 @@ func (sl *SkipList[T]) Remove(member T, score float64) bool {
 	return false
 }
 
-func (sl *SkipList[T]) removeNode(tarNode *skipNode[T], prevs []*skipNode[T]) {
+func (sl *SkipList[T]) removeNode(tarNode *SkipNode[T], prevs []*SkipNode[T]) {
 	// 断开next
 	for i := int16(0); i < sl.level; i++ {
 		if prevs[i].levels[i].next == tarNode {
@@ -195,104 +203,132 @@ func (sl *SkipList[T]) removeNode(tarNode *skipNode[T], prevs []*skipNode[T]) {
 		sl.level--
 	}
 	// 长度减1
-	sl.size--
+	sl.length--
 }
 
 // GetRank 返回指定成员的rank，rank从0开始
-func (sl *SkipList[T]) GetRank(member T, score float64) int {
-	rank := -1
+func (sl *SkipList[T]) GetRank(obj T, score float64) int {
+	if sl == nil {
+		panic("this SkipList is nil")
+	}
+	condition := func(node *SkipNode[T]) bool {
+		return node.Score < score || (node.Score == score && sl.comp(node.Obj, obj) == -1)
+	}
+	rank := -1 // header的rank为-1
 	node := sl.header
+	// 寻找目标结点的可能前置结点
 	for i := sl.level - 1; i >= 0; i-- {
-		for ptr := node.levels[i].next; ptr != nil; ptr = ptr.levels[i].next {
-			if ptr.Score < score ||
-				(ptr.Score == score && sl.comp(ptr.Member, member) != 1) {
-				// 当前结点的score小于新结点score || score相等，但当前结点的member值小于等于目标结点member
-				rank += node.levels[i].span
-				node = node.levels[i].next
-			} else {
-				break
-			}
+		for node.levels[i].next != nil && condition(node.levels[i].next) {
+			rank += node.levels[i].span
+			node = node.levels[i].next
 		}
-		if node.Member == member {
-			return rank
-		}
+	}
+	// 判断下一个结点是否符合要求
+	node = node.levels[0].next
+	if node != nil && node.Score == score && sl.comp(node.Obj, obj) == 0 {
+		return rank + 1
 	}
 	return -1 // -1表示不包含该成员
 }
 
-func (sl *SkipList[T]) getNodeByRank(rank int) *skipNode[T] {
-	r := -1
+// GetNode 根据obj和score获取节点
+func (sl *SkipList[T]) GetNode(obj T, score float64) *SkipNode[T] {
+	if sl == nil {
+		panic("this SkipList is nil")
+	}
+	condition := func(node *SkipNode[T]) bool {
+		return node.Score < score || (node.Score == score && sl.comp(node.Obj, obj) == -1)
+	}
 	node := sl.header
+	// 寻找目标结点的可能前置结点
 	for i := sl.level - 1; i >= 0; i-- {
-		for ptr := node.levels[i].next; ptr != nil; ptr = ptr.levels[i].next {
-			if r+node.levels[i].span <= rank {
-				r += node.levels[i].span
-				node = node.levels[i].next
-			} else {
-				break
-			}
-		}
-		if r == rank {
-			return node
+		for node.levels[i].next != nil && condition(node.levels[i].next) {
+			node = node.levels[i].next
 		}
 	}
-	return nil // 不存在
+	// 判断下一个结点是否符合要求
+	node = node.levels[0].next
+	if node != nil && node.Score == score && sl.comp(node.Obj, obj) == 0 {
+		return node
+	}
+	return nil
 }
 
-//func (sl *SkipList) hasInRange(min *ScoreBorder, max *ScoreBorder) bool {
-//	// min & max = empty
-//	if min.Value > max.Value || (min.Value == max.Value && (min.Exclude || max.Exclude)) {
-//		return false
-//	}
-//	// min > tail
-//	n := sl.tail
-//	if n == nil || !min.less(n.Score) {
-//		return false
-//	}
-//	// max < header
-//	n = sl.header.levels[0].next
-//	if n == nil || !max.greater(n.Score) {
-//		return false
-//	}
-//	return true
-//}
-//
-//func (sl *SkipList) getFirstInScoreRange(min *ScoreBorder, max *ScoreBorder) *skipNode {
-//	if !sl.hasInRange(min, max) {
-//		return nil
-//	}
-//	n := sl.header
-//	// scan from top levels
-//	for level := sl.level - 1; level >= 0; level-- {
-//		// if next is not in range than move next
-//		for n.levels[level].next != nil && !min.less(n.levels[level].next.Score) {
-//			n = n.levels[level].next
-//		}
-//	}
-//	/* This is an inner range, so the next skipNode cannot be NULL. */
-//	n = n.levels[0].next
-//	if !max.greater(n.Score) {
-//		return nil
-//	}
-//	return n
-//}
-//
-//func (sl *SkipList) getLastInScoreRange(min *ScoreBorder, max *ScoreBorder) *skipNode {
-//	if !sl.hasInRange(min, max) {
-//		return nil
-//	}
-//	n := sl.header
-//	// scan from top levels
-//	for level := sl.level - 1; level >= 0; level-- {
-//		for n.levels[level].next != nil && max.greater(n.levels[level].next.Score) {
-//			n = n.levels[level].next
-//		}
-//	}
-//	if !min.less(n.Score) {
-//		return nil
-//	}
-//	return n
-//}
+// GetNodeByRank 根据rank获取节点
+func (sl *SkipList[T]) GetNodeByRank(targetRank int) *SkipNode[T] {
+	if sl == nil {
+		panic("this SkipList is nil")
+	}
+	if targetRank < 0 || targetRank >= sl.length {
+		return nil
+	}
+	rank := -1 // header的rank为-1
+	node := sl.header
+	// 寻找最后一个rank<targetRank的结点
+	for i := sl.level - 1; i >= 0; i-- {
+		for node.levels[i].next != nil && rank+node.levels[i].span < targetRank {
+			rank = rank + node.levels[i].span
+			node = node.levels[i].next
+		}
+	}
+	return node.levels[0].next
+}
+
+// IsInRange 判断是否存在score位于[min, max]的结点
+func (sl *SkipList[T]) IsInRange(min float64, max float64) bool {
+	if sl == nil {
+		panic("this SkipList is nil")
+	}
+	if min > max {
+		return false
+	}
+	lastNode := sl.tail
+	if lastNode == nil || min > lastNode.Score {
+		return false
+	}
+	firstNode := sl.header.levels[0].next
+	if firstNode == nil || max < firstNode.Score {
+		return false
+	}
+	return true
+}
+
+// FirstInRange 返回score位于[min, max]中的第一个结点
+func (sl *SkipList[T]) FirstInRange(min float64, max float64) *SkipNode[T] {
+	if sl == nil {
+		panic("this SkipList is nil")
+	}
+	if !sl.IsInRange(min, max) {
+		return nil
+	}
+	cur := sl.header
+	// 寻找最后一个score<min的结点
+	for i := sl.level - 1; i >= 0; i-- {
+		for cur.levels[i].next != nil && cur.levels[i].next.Score < min {
+			cur = cur.levels[i].next
+		}
+	}
+	return cur.levels[0].next
+}
+
+// LastInRange 返回score位于[min, max]中的最后一个结点
+func (sl *SkipList[T]) LastInRange(min float64, max float64) *SkipNode[T] {
+	if sl == nil {
+		panic("this SkipList is nil")
+	}
+	if !sl.IsInRange(min, max) {
+		return nil
+	}
+	cur := sl.header
+	// 寻找最后一个score<=max的结点
+	for i := sl.level - 1; i >= 0; i-- {
+		for cur.levels[i].next != nil && cur.levels[i].next.Score <= max {
+			cur = cur.levels[i].next
+		}
+	}
+	return cur
+}
+
 //
 ///*
 // * return removed elements
