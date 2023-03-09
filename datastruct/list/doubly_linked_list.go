@@ -154,7 +154,7 @@ func (list *DLinkedList[T]) RemoveAll(condition Condition[T]) int {
 	}
 	return cnt
 }
-func (list *DLinkedList[T]) RemoveLeft(condition Condition[T], num int) int {
+func (list *DLinkedList[T]) RemoveFromLeft(condition Condition[T], num int) int {
 	if list == nil {
 		panic("this DLinkedList is nil.")
 	}
@@ -170,7 +170,7 @@ func (list *DLinkedList[T]) RemoveLeft(condition Condition[T], num int) int {
 	}
 	return cnt
 }
-func (list *DLinkedList[T]) RemoveRight(condition Condition[T], num int) int {
+func (list *DLinkedList[T]) RemoveFromRight(condition Condition[T], num int) int {
 	if list == nil {
 		panic("this DLinkedList is nil.")
 	}

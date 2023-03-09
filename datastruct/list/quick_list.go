@@ -4,9 +4,13 @@ import (
 	"fmt"
 )
 
-const pageSize = 4 // page的大小, 必须设置为偶数
+const pageSize = 32 // page的大小, 必须设置为偶数
 
 type Page[T any] []T // T的切片
+
+func NewPage[T any]() Page[T] {
+	return make(Page[T], 0, pageSize)
+}
 
 // QuickList 本质上是个双端链表，其结点为page[T]类型
 type QuickList[T any] struct {
@@ -34,7 +38,7 @@ func (list *QuickList[T]) Add(val T) {
 	list.size++
 	if list.data.Len() == 0 {
 		// 表为空时
-		newPage := make(Page[T], 0, pageSize)
+		newPage := NewPage[T]()
 		newPage = append(newPage, val)
 		list.data.Add(newPage)
 		return
@@ -42,13 +46,14 @@ func (list *QuickList[T]) Add(val T) {
 	lastPage := list.data.GetLast()
 	if len(lastPage) == cap(lastPage) {
 		// lastPage已满，新建page
-		newPage := make(Page[T], 0, pageSize)
+		newPage := NewPage[T]()
 		newPage = append(newPage, val)
 		list.data.Add(newPage)
-		return
+	} else {
+		// lastPage未满
+		lastPage = append(lastPage, val)
+		list.data.SetLast(lastPage)
 	}
-	lastPage = append(lastPage, val)
-	list.data.SetLast(lastPage)
 }
 
 func (list *QuickList[T]) Get(idx int) (val T) {
@@ -93,7 +98,7 @@ func (list *QuickList[T]) Insert(idx int, val T) {
 		return
 	}
 	// 当前页已满，将当前页均分为两个页 (insert into a full Page may cause memory copy)
-	var nextPage Page[T]
+	nextPage := NewPage[T]()
 	nextPage = append(nextPage, page[pageSize/2:]...)
 	page = page[:pageSize/2]
 	if iter.idx < len(page) {
@@ -133,7 +138,7 @@ func (list *QuickList[T]) RemoveAll(condition Condition[T]) int {
 	return count
 }
 
-func (list *QuickList[T]) RemoveLeft(condition Condition[T], num int) int {
+func (list *QuickList[T]) RemoveFromLeft(condition Condition[T], num int) int {
 	if list == nil {
 		panic("this QuickList is nil.")
 	}
@@ -151,7 +156,7 @@ func (list *QuickList[T]) RemoveLeft(condition Condition[T], num int) int {
 
 }
 
-func (list *QuickList[T]) RemoveRight(condition Condition[T], num int) int {
+func (list *QuickList[T]) RemoveFromRight(condition Condition[T], num int) int {
 	if list == nil {
 		panic("this QuickList is nil.")
 	}
@@ -160,7 +165,7 @@ func (list *QuickList[T]) RemoveRight(condition Condition[T], num int) int {
 	for !iter.outBegin() && count < num {
 		if condition(iter.get()) {
 			iter.remove() // 移除并next
-			iter.prev()   // 再prev
+			iter.prev()   // 再prev一下
 			count++
 		} else {
 			iter.prev()

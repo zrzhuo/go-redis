@@ -222,9 +222,9 @@ func execLRem(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	var count int
 	if num > 0 {
-		count = list.RemoveLeft(equals, int(num))
+		count = list.RemoveFromLeft(equals, int(num))
 	} else if num < 0 {
-		count = list.RemoveRight(equals, int(-num))
+		count = list.RemoveFromRight(equals, int(-num))
 	} else {
 		count = list.RemoveAll(equals)
 	}

@@ -100,7 +100,7 @@ func (iter *iterator[T]) remove() T {
 				iter.node = iter.node.next
 				iter.idx = 0
 			} else {
-				// 当前页是最后一页，已经OutEnd，无需处理
+				// 当前页是最后一页，则此时已经OutEnd，无需处理
 			}
 		}
 	} else {
