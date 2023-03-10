@@ -49,14 +49,15 @@ func MakeServer() *Server {
 			}
 		}
 		persister.ReadAOF(-1) // 加载整个AOF文件
+		logger.Info("DB load from append only file...")
 		persister.Listening() // 开启AOF监听
 		server.persister = persister
 	}
 	return server
 }
 
-// MakeTempServer 创建一个临时server，用于AOF重写
-func MakeTempServer() *Server {
+// MakeFakeServer 创建一个临时的server，用于AOF重写
+func MakeFakeServer() *Server {
 	server := &Server{}
 	// 创建指定个数的db，默认为16
 	dbNum := 16

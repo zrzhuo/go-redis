@@ -206,7 +206,7 @@ func (pst *Persister) ReWrite() error {
 		return err
 	}
 	// 创建临时server和临时persister
-	tempServer := MakeTempServer()
+	tempServer := MakeFakeServer()
 	tempPersister := &Persister{}
 	tempPersister.filename = pst.filename
 	tempPersister.server = tempServer
