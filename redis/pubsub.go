@@ -5,19 +5,19 @@ import (
 	List "go-redis/datastruct/list"
 	_interface "go-redis/interface"
 	Reply "go-redis/resp/reply"
-	"go-redis/utils/sync"
+	_sync "go-redis/utils/sync"
 	"strconv"
 )
 
 type Pubsub struct {
 	table  Dict.Dict[string, List.List[_interface.Client]]
-	locker *sync.Locker
+	locker *_sync.Locker
 }
 
 func MakePubsub() *Pubsub {
 	return &Pubsub{
 		table:  Dict.MakeConcurrentDict[string, List.List[_interface.Client]](8),
-		locker: sync.MakeLocker(16),
+		locker: _sync.MakeLocker(16),
 	}
 }
 
@@ -85,9 +85,9 @@ func (ps *Pubsub) Publish(client _interface.Client, channel string, message []by
 	if !ok {
 		return Reply.MakeIntReply(0)
 	}
-	respFunc := func(i int, c _interface.Client) bool {
+	respFunc := func(i int, client _interface.Client) bool {
 		reply := Reply.StringToArrayReply("message", channel, string(message))
-		_, _ = c.Write(reply.ToBytes())
+		_, _ = client.Write(reply.ToBytes())
 		return true
 	}
 	subscribers.ForEach(respFunc)

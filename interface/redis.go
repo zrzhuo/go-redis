@@ -32,8 +32,9 @@ type Client interface {
 }
 
 type Server interface {
-	ExecWithLock(client Client, cmdLine _type.CmdLine) Reply
-	ExecWithoutLock(client Client, cmdLine _type.CmdLine) Reply
+	ExecCommand(client Client, cmdLine _type.CmdLine) Reply
+	ExecForTX(client Client, cmdLine _type.CmdLine) Reply
+	ExecForAOF(client Client, cmdLine _type.CmdLine) Reply
 
 	SetTxing(flag bool)
 	IsTxing() bool

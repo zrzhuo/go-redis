@@ -56,6 +56,7 @@ func MakeSimpleDatabase(idx int) *Database {
 	return database
 }
 
+// Execute 执行命令
 func (db *Database) Execute(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
 	cmdName := strings.ToLower(string(cmdLine[0])) // 获取命令
 	cmd, ok := CmdRouter[cmdName]
@@ -68,15 +69,23 @@ func (db *Database) Execute(client _interface.Client, cmdLine _type.CmdLine) _in
 		return Reply.ArgNumError(cmdName)
 	}
 	args := _type.Args(cmdLine[1:])
-	// 获取有关的key
+	// 获取有关的key并加锁，这里的加锁解锁对相同的一组key是有固定顺序的，避免因循环等待而产生死锁
 	writeKeys, readKeys := cmd.keysFind(args)
-	// 对有关的key加锁，这里的加锁解锁对相同的一组key是有固定顺序的，避免了产生死锁
 	db.lockKeys(writeKeys, readKeys)
 	defer db.unLockKeys(writeKeys, readKeys)
 	// 修改版本，用于watch命令
 	db.AddVersion(writeKeys...)
 	// 执行
-	reply := cmd.Execute(db, args)
+	reply := cmd.Executor(db, args)
+	return reply
+}
+
+// QuickExecute 快速执行命令，用于AOF文件的加载
+func (db *Database) QuickExecute(client _interface.Client, cmdLine _type.CmdLine) _interface.Reply {
+	cmdName := strings.ToLower(string(cmdLine[0]))
+	args := _type.Args(cmdLine[1:])
+	cmd, _ := CmdRouter[cmdName]
+	reply := cmd.Executor(db, args)
 	return reply
 }
 
@@ -136,7 +145,7 @@ func (db *Database) IsExpired(key string) bool {
 	return time.Now().After(expire)
 }
 
-/* ----- version ----- */
+/* ----- Version ----- */
 
 func (db *Database) AddVersion(keys ...string) {
 	for _, key := range keys {

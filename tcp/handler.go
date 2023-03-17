@@ -71,7 +71,7 @@ func (handler *Handler) Handle(conn net.Conn) {
 		}
 		cmdLine := reply.Args
 		// 执行命令
-		result := handler.server.ExecWithLock(client, cmdLine)
+		result := handler.server.ExecCommand(client, cmdLine)
 		if result != nil {
 			_, _ = client.Write(result.ToBytes())
 		} else {
