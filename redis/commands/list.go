@@ -258,6 +258,9 @@ func execLRange(db *redis.Database, args _type.Args) _interface.Reply {
 	if left < 0 {
 		return Reply.MakeNilBulkReply()
 	}
-	vals := list.Range(left, right+1) // 左闭右闭
+	if right < list.Len() {
+		right = right + 1
+	}
+	vals := list.Range(left, right)
 	return Reply.MakeArrayReply(vals)
 }

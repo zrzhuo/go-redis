@@ -53,6 +53,28 @@ func (r *ArrayReply) ToBytes() []byte {
 	return buf.Bytes()
 }
 
+/* ---- Raw Array (Reply Array)---- */
+
+type RawArrayReply struct {
+	Replies []_interface.Reply
+}
+
+func MakeRawArrayReply(replies []_interface.Reply) *RawArrayReply {
+	return &RawArrayReply{
+		Replies: replies,
+	}
+}
+
+func (r *RawArrayReply) ToBytes() []byte {
+	argLen := len(r.Replies)
+	var buf bytes.Buffer
+	buf.WriteString("*" + strconv.Itoa(argLen) + CRLF)
+	for _, reply := range r.Replies {
+		buf.Write(reply.ToBytes())
+	}
+	return buf.Bytes()
+}
+
 /* ---- Status ---- */
 
 type StatusReply struct {
@@ -83,27 +105,4 @@ func MakeIntReply(code int64) *IntReply {
 
 func (r *IntReply) ToBytes() []byte {
 	return []byte(":" + strconv.FormatInt(r.Code, 10) + CRLF)
-}
-
-/* ---- Multi Raw Reply ---- */
-
-// MultiRawReply store complex list structure, for example GeoPos commands
-type MultiRawReply struct {
-	Replies []_interface.Reply
-}
-
-func MakeMultiRawReply(replies []_interface.Reply) *MultiRawReply {
-	return &MultiRawReply{
-		Replies: replies,
-	}
-}
-
-func (r *MultiRawReply) ToBytes() []byte {
-	argLen := len(r.Replies)
-	var buf bytes.Buffer
-	buf.WriteString("*" + strconv.Itoa(argLen) + CRLF)
-	for _, arg := range r.Replies {
-		buf.Write(arg.ToBytes())
-	}
-	return buf.Bytes()
 }

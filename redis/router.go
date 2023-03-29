@@ -13,26 +13,23 @@ const (
 
 /* ---- database command ---- */
 
-type Execute func(db *Database, args _type.Args) _interface.Reply
+type Executor func(db *Database, args _type.Args) _interface.Reply
 
 type keysFind func(args _type.Args) ([]string, []string)
 
-//type Undo func(db *Database, args _type.Args) []_type.CmdLine
-
 type command struct {
-	Execute  Execute
+	Executor Executor
 	keysFind keysFind
-	//undo     Undo
-	Arity  int // 大于等于零时表示参数个数，小于零时表示参数个数的最小值
-	Status int
+	Arity    int // 大于等于零时表示参数个数，小于零时表示参数个数的最小值
+	Status   int // 当前命令是读命令还是写命令
 }
 
 var CmdRouter = make(map[string]*command)
 
-func RegisterCommand(name string, execute Execute, keysFind keysFind, arity int, status int) {
+func RegisterCommand(name string, executor Executor, keysFind keysFind, arity int, status int) {
 	name = strings.ToLower(name)
 	CmdRouter[name] = &command{
-		Execute:  execute,
+		Executor: executor,
 		keysFind: keysFind,
 		Arity:    arity,
 		Status:   status,
@@ -41,20 +38,20 @@ func RegisterCommand(name string, execute Execute, keysFind keysFind, arity int,
 
 /* ---- system command ---- */
 
-type SysExec func(server *Server, client _interface.Client, args _type.Args) _interface.Reply
+type SysExecutor func(server *Server, client _interface.Client, args _type.Args) _interface.Reply
 
 type sysCommand struct {
-	SysExec SysExec
-	Arity   int // 大于等于零时表示参数个数，小于零时表示参数个数的最小值
+	Executor SysExecutor
+	Arity    int // 大于等于零时表示参数个数，小于零时表示参数个数的最小值
 }
 
 var SysCmdRouter = make(map[string]*sysCommand)
 
-func RegisterSysCommand(name string, sysExec SysExec, arity int) {
+func RegisterSysCommand(name string, sysExec SysExecutor, arity int) {
 	name = strings.ToLower(name)
 	SysCmdRouter[name] = &sysCommand{
-		SysExec: sysExec,
-		Arity:   arity,
+		Executor: sysExec,
+		Arity:    arity,
 	}
 }
 
@@ -66,4 +63,9 @@ var TxCmd = map[string]bool{
 	"discard": true,
 	"watch":   true,
 	"unwatch": true,
+}
+
+func IsTxCmd(cmd string) bool {
+	_, ok := TxCmd[cmd]
+	return ok
 }

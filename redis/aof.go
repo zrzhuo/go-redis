@@ -192,7 +192,7 @@ func (pst *Persister) ReadAOF(size int64) {
 			}
 		}
 		// 执行命令
-		reply := pst.server.ExecWithoutLock(aofConn, cmd.Args)
+		reply := pst.server.ExecForAOF(aofConn, cmd.Args)
 		if Reply.IsErrorReply(reply) {
 			logger.Error("execute error: ", string(reply.ToBytes()))
 		}
@@ -206,7 +206,7 @@ func (pst *Persister) ReWrite() error {
 		return err
 	}
 	// 创建临时server和临时persister
-	tempServer := MakeTempServer()
+	tempServer := MakeFakeServer()
 	tempPersister := &Persister{}
 	tempPersister.filename = pst.filename
 	tempPersister.server = tempServer
@@ -288,7 +288,7 @@ func (pst *Persister) postReWrite(newFile *os.File, oldSize int64, oldIdx int) {
 		return
 	}
 	// select之前的db
-	reply := Reply.StringToArrayReply("select", strconv.Itoa(oldIdx))
+	reply := Reply.StringToArrayReply("SELECT", strconv.Itoa(oldIdx))
 	_, err = newFile.Write(reply.ToBytes())
 	if err != nil {
 		logger.Error("rewrite AOF file failed: " + err.Error())
@@ -301,7 +301,7 @@ func (pst *Persister) postReWrite(newFile *os.File, oldSize int64, oldIdx int) {
 		return
 	}
 	// select现在的db
-	reply = Reply.StringToArrayReply("select", strconv.Itoa(pst.dbIdx))
+	reply = Reply.StringToArrayReply("SELECT", strconv.Itoa(pst.dbIdx))
 	_, err = newFile.Write(reply.ToBytes())
 	if err != nil {
 		logger.Error("rewrite AOF file failed: " + err.Error())

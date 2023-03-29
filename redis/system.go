@@ -13,6 +13,7 @@ import (
 
 func init() {
 	RegisterSysCommand("sleep", execSleep, 2) // sleep，用于测试
+	RegisterSysCommand("auth", execAuth, 2)
 	RegisterSysCommand("ping", execPing, -1)
 	RegisterSysCommand("config", execConfig, -2)
 	RegisterSysCommand("select", execSelect, 2)
@@ -132,7 +133,7 @@ func execConfigSet(server *Server, client _interface.Client, args _type.Args) _i
 
 func execFlushDB(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	dbIdx := client.GetSelectDB()
-	db := server.GetDatabase(dbIdx)
+	db := server.getDatabase(dbIdx)
 	db.Flush()
 	db.ToAOF(utils.ToCmd("flushdb", []byte(strconv.Itoa(dbIdx))))
 	return Reply.MakeOkReply()
@@ -200,9 +201,9 @@ func execWatch(server *Server, client _interface.Client, args _type.Args) _inter
 	if client.IsTxState() {
 		return Reply.StandardError("WATCH inside MULTI is not allowed")
 	}
-	client.InitWatch(server.DataBaseCount())
+	client.InitWatch(server.dataBaseCount())
 	dbIdx := client.GetSelectDB()
-	db := server.GetDatabase(dbIdx)
+	db := server.getDatabase(dbIdx)
 	for i := 0; i < len(args); i++ {
 		key := string(args[i])
 		version := db.GetVersion(key)
@@ -237,7 +238,7 @@ func execExec(server *Server, client _interface.Client, args _type.Args) _interf
 	defer client.DestroyWatch()
 	// 检查被watch的keys是否被更改
 	for i, keys := range client.GetWatchKeys() {
-		db := server.GetDatabase(i)
+		db := server.getDatabase(i)
 		for key, version := range keys {
 			currVersion := db.GetVersion(key)
 			if version != currVersion {
@@ -245,21 +246,18 @@ func execExec(server *Server, client _interface.Client, args _type.Args) _interf
 			}
 		}
 	}
-	// 检查是否出现错误
+	// 检查是否存在错误，有错误则不拒绝执行事务
 	if len(client.GetTxError()) > 0 {
 		return Reply.StandardError("EXECABORT Transaction discarded because of previous errors.")
 	}
 	// 执行
 	cmdLines := client.GetTxQueue()
-	replies := make([]string, 0, len(cmdLines))
+	replies := make([]_interface.Reply, 0, len(cmdLines))
 	for _, cmdLine := range cmdLines {
-		reply := server.ExecWithoutLock(client, cmdLine)
-		if Reply.IsErrorReply(reply) {
-			break
-		}
-		replies = append(replies, string(reply.ToBytes()))
+		reply := server.ExecForTX(client, cmdLine) // 执行当前命令（无需加锁）
+		replies = append(replies, reply)
 	}
-	return Reply.StringToArrayReply(replies...)
+	return Reply.MakeRawArrayReply(replies)
 }
 func execDiscard(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	if !client.IsTxState() {
