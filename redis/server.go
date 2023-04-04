@@ -20,8 +20,8 @@ type Server struct {
 	txing     bool            // 正在执行事务
 }
 
-// MakeServer 读取配置，创建server
-func MakeServer() *Server {
+// NewServer 读取配置，创建server
+func NewServer() *Server {
 	server := &Server{}
 	// 创建指定个数的db，默认为16
 	dbNum := 16

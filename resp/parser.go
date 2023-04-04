@@ -17,7 +17,7 @@ type Parser struct {
 	ch     chan *Payload
 }
 
-func MakeParser(reader io.Reader) *Parser {
+func NewParser(reader io.Reader) *Parser {
 	return &Parser{
 		reader: bufio.NewReader(reader),
 		ch:     make(chan *Payload),

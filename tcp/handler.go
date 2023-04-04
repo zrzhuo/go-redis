@@ -21,7 +21,7 @@ type Handler struct {
 }
 
 func NewHandler() *Handler {
-	server := redis.MakeServer()
+	server := redis.NewServer()
 	commands.RegisterAllCommand() // 注册所有命令
 	return &Handler{
 		server: server,
@@ -39,7 +39,7 @@ func (handler *Handler) Handle(conn net.Conn) {
 	handler.clients.Store(client, struct{}{})
 
 	// handle
-	parser := resp.MakeParser(conn)
+	parser := resp.NewParser(conn)
 	ch := parser.ParseCLI()
 	for payload := range ch {
 		if payload.Err != nil {

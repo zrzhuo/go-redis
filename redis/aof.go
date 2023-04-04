@@ -165,7 +165,7 @@ func (pst *Persister) ReadAOF(size int64) {
 	} else {
 		reader = aofFile // 加载整个文件
 	}
-	ch := resp.MakeParser(reader).ParseFile()
+	ch := resp.NewParser(reader).ParseFile()
 	aofConn := GetAofClient()
 	for payload := range ch {
 		if payload.Err != nil {
