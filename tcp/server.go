@@ -18,7 +18,7 @@ type Server struct {
 	signalCh chan os.Signal
 }
 
-func MakeTcpServer(address string, handler _interface.Handler) *Server {
+func NewTcpServer(address string, handler _interface.Handler) *Server {
 	return &Server{
 		address:  address,
 		handler:  handler,

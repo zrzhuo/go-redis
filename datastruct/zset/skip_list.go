@@ -43,7 +43,7 @@ func newSkipNode[T comparable](obj T, score float64, level int16) *SkipNode[T] {
 	return node
 }
 
-func MakeSkiplist[T comparable](comp Compare[T]) *SkipList[T] {
+func NewSkiplist[T comparable](comp Compare[T]) *SkipList[T] {
 	var null T
 	return &SkipList[T]{
 		header: newSkipNode[T](null, math.SmallestNonzeroFloat64, maxLevel), // 头结点的score设为最小值

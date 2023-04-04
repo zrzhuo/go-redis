@@ -20,7 +20,7 @@ type Handler struct {
 	closing _sync.Boolean // 标志当前handler是否处于"closing"的状态
 }
 
-func MakeHandler() *Handler {
+func NewHandler() *Handler {
 	server := redis.MakeServer()
 	commands.RegisterAllCommand() // 注册所有命令
 	return &Handler{

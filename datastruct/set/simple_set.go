@@ -9,9 +9,9 @@ type SimpleSet[T comparable] struct {
 	dict Dict.Dict[T, any]
 }
 
-func MakeSimpleSet[T comparable](members ...T) Set[T] {
+func NewSimpleSet[T comparable](members ...T) Set[T] {
 	set := &SimpleSet[T]{
-		dict: Dict.MakeSimpleDict[T, any](),
+		dict: Dict.NewSimpleDict[T, any](),
 	}
 	for _, member := range members {
 		set.Add(member)
@@ -58,7 +58,7 @@ func (set *SimpleSet[T]) Inter(ano Set[T]) Set[T] {
 	if set == nil {
 		panic("set is nil")
 	}
-	result := MakeSimpleSet[T]()
+	result := NewSimpleSet[T]()
 	set.ForEach(func(member T) bool {
 		if ano.Contain(member) {
 			result.Add(member)
@@ -72,7 +72,7 @@ func (set *SimpleSet[T]) Diff(ano Set[T]) Set[T] {
 	if set == nil {
 		panic("set is nil")
 	}
-	result := MakeSimpleSet[T]()
+	result := NewSimpleSet[T]()
 	set.ForEach(func(member T) bool {
 		if !ano.Contain(member) {
 			result.Add(member)
@@ -86,7 +86,7 @@ func (set *SimpleSet[T]) Union(ano Set[T]) Set[T] {
 	if set == nil {
 		panic("set is nil")
 	}
-	result := MakeSimpleSet[T]()
+	result := NewSimpleSet[T]()
 	set.ForEach(func(member T) bool {
 		result.Add(member)
 		return true

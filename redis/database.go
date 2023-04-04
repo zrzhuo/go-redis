@@ -32,24 +32,24 @@ type Database struct {
 	ToAOF   func(_type.CmdLine)              // 添加命令到aof
 }
 
-func MakeDatabase(idx int) *Database {
+func NewDatabase(idx int) *Database {
 	database := &Database{
 		idx:     idx,
-		data:    Dict.MakeConcurrentDict[string, *_type.Entity](dataSize),
-		version: Dict.MakeConcurrentDict[string, int](dataSize),
-		ttlTime: Dict.MakeConcurrentDict[string, time.Time](ttlSize),
+		data:    Dict.NewConcurrentDict[string, *_type.Entity](dataSize),
+		version: Dict.NewConcurrentDict[string, int](dataSize),
+		ttlTime: Dict.NewConcurrentDict[string, time.Time](ttlSize),
 		locker:  _sync.MakeLocker(lockerSize),
 		ToAOF:   func(line _type.CmdLine) {},
 	}
 	return database
 }
 
-func MakeSimpleDatabase(idx int) *Database {
+func NewSimpleDatabase(idx int) *Database {
 	database := &Database{
 		idx:     idx,
-		data:    Dict.MakeSimpleDict[string, *_type.Entity](),
-		version: Dict.MakeSimpleDict[string, int](),
-		ttlTime: Dict.MakeSimpleDict[string, time.Time](),
+		data:    Dict.NewSimpleDict[string, *_type.Entity](),
+		version: Dict.NewSimpleDict[string, int](),
+		ttlTime: Dict.NewSimpleDict[string, time.Time](),
 		locker:  _sync.MakeLocker(1),
 		ToAOF:   func(line _type.CmdLine) {},
 	}
@@ -298,7 +298,7 @@ func (db *Database) GetOrInitList(key string) (list List.List[[]byte], isNew boo
 	isNew = false
 	if list == nil {
 		// 初始化list
-		list = List.MakeQuickList[[]byte]() // list由[]byte类型的QuickList实现
+		list = List.NewQuickList[[]byte]() // list由[]byte类型的QuickList实现
 		entity := _type.NewEntity(list)
 		db.Put(key, entity)
 		isNew = true
@@ -314,7 +314,7 @@ func (db *Database) GetOrInitSet(key string) (set Set.Set[string], isNew bool, e
 	isNew = false
 	if set == nil {
 		// 初始化set
-		set = Set.MakeSimpleSet[string]() // set由string类型的SimpleSet实现
+		set = Set.NewSimpleSet[string]() // set由string类型的SimpleSet实现
 		entity := _type.NewEntity(set)
 		db.Put(key, entity)
 		isNew = true
@@ -355,7 +355,7 @@ func (db *Database) GetOrInitDict(key string) (set Dict.Dict[string, []byte], is
 	isNew = false
 	if set == nil {
 		// 初始化set
-		set = Dict.MakeSimpleDict[string, []byte]() // hash由[string, []byte]类型的SimpleDict实现
+		set = Dict.NewSimpleDict[string, []byte]() // hash由[string, []byte]类型的SimpleDict实现
 		entity := _type.NewEntity(set)
 		db.Put(key, entity)
 		isNew = true

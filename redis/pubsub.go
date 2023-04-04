@@ -14,9 +14,9 @@ type Pubsub struct {
 	locker *_sync.Locker
 }
 
-func MakePubsub() *Pubsub {
+func NewPubsub() *Pubsub {
 	return &Pubsub{
-		table:  Dict.MakeConcurrentDict[string, List.List[_interface.Client]](8),
+		table:  Dict.NewConcurrentDict[string, List.List[_interface.Client]](8),
 		locker: _sync.MakeLocker(16),
 	}
 }
@@ -31,7 +31,7 @@ func (ps *Pubsub) Subscribe(client _interface.Client, channels []string) _interf
 		subscribers, ok := ps.table.Get(channel)
 		// 当前channel不存在
 		if !ok {
-			subscribers = List.MakeDLinkedList[_interface.Client]()
+			subscribers = List.NewDLinkedList[_interface.Client]()
 			ps.table.Put(channel, subscribers)
 		}
 		equalFunc := func(target _interface.Client) bool {

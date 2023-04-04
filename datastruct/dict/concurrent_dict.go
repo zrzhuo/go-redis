@@ -37,7 +37,7 @@ type ConcurrentDict[K comparable, V any] struct {
 	length    int32 // 包含键值对的个数
 }
 
-func MakeConcurrentDict[K comparable, V any](num int32) *ConcurrentDict[K, V] {
+func NewConcurrentDict[K comparable, V any](num int32) *ConcurrentDict[K, V] {
 	bucketNum := computeBucketNum(num) // 计算bucket的合适个数
 	buckets := make([]*bucket[K, V], bucketNum)
 	for i := int32(0); i < bucketNum; i++ {
@@ -313,7 +313,7 @@ func (dict *ConcurrentDict[K, V]) RandomDistinctKeys(num int) []K {
 
 func (dict *ConcurrentDict[K, V]) Clear() {
 	checkNilDict(dict)
-	*dict = *MakeConcurrentDict[K, V](dict.bucketNum)
+	*dict = *NewConcurrentDict[K, V](dict.bucketNum)
 }
 
 func checkNilDict(dict any) {

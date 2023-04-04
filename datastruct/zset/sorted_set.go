@@ -12,8 +12,8 @@ type SortedSet[T comparable] struct {
 
 func MakeSortedSet[T comparable](comp Compare[T]) ZSet[T] {
 	return &SortedSet[T]{
-		dict:     Dict.MakeSimpleDict[T, float64](),
-		skiplist: MakeSkiplist[T](comp),
+		dict:     Dict.NewSimpleDict[T, float64](),
+		skiplist: NewSkiplist[T](comp),
 	}
 }
 

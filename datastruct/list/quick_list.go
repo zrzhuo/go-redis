@@ -18,9 +18,9 @@ type QuickList[T any] struct {
 	size int                   // T元素的个数
 }
 
-func MakeQuickList[T any]() *QuickList[T] {
+func NewQuickList[T any]() *QuickList[T] {
 	return &QuickList[T]{
-		data: MakeDLinkedList[Page[T]](),
+		data: NewDLinkedList[Page[T]](),
 	}
 }
 

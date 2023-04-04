@@ -19,7 +19,7 @@ type DLinkedList[T any] struct {
 	size int      // 链表当前含有的结点数
 }
 
-func MakeDLinkedList[T any]() *DLinkedList[T] {
+func NewDLinkedList[T any]() *DLinkedList[T] {
 	return &DLinkedList[T]{
 		head: nil,
 		tail: nil,

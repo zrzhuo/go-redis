@@ -181,7 +181,7 @@ func execSMembers(db *redis.Database, args _type.Args) _interface.Reply {
 }
 
 func execSInter(db *redis.Database, args _type.Args) _interface.Reply {
-	set := Set.MakeSimpleSet[string]()
+	set := Set.NewSimpleSet[string]()
 	for _, arg := range args {
 		anoSet, errReply := db.GetSet(string(arg))
 		if errReply != nil {
@@ -199,7 +199,7 @@ func execSInter(db *redis.Database, args _type.Args) _interface.Reply {
 }
 
 func execSUnion(db *redis.Database, args _type.Args) _interface.Reply {
-	set := Set.MakeSimpleSet[string]()
+	set := Set.NewSimpleSet[string]()
 	for _, arg := range args {
 		anoSet, errReply := db.GetSet(string(arg))
 		if errReply != nil {
@@ -225,7 +225,7 @@ func execSDiff(db *redis.Database, args _type.Args) _interface.Reply {
 		return reply.MakeEmptyArrayReply()
 	}
 	// 求其余set的并集，然后在求差集，可提高效率
-	unionSet := Set.MakeSimpleSet[string]()
+	unionSet := Set.NewSimpleSet[string]()
 	for _, arg := range args[1:] {
 		anoSet, errReply := db.GetSet(string(arg))
 		if errReply != nil {
@@ -245,7 +245,7 @@ func execSDiff(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execSInterStore(db *redis.Database, args _type.Args) _interface.Reply {
 	dest := string(args[0])
-	set := Set.MakeSimpleSet[string]()
+	set := Set.NewSimpleSet[string]()
 	for _, arg := range args[1:] {
 		anoSet, errReply := db.GetSet(string(arg))
 		if errReply != nil {
@@ -272,7 +272,7 @@ func execSInterStore(db *redis.Database, args _type.Args) _interface.Reply {
 
 func execSUnionStore(db *redis.Database, args _type.Args) _interface.Reply {
 	dest := string(args[0])
-	set := Set.MakeSimpleSet[string]()
+	set := Set.NewSimpleSet[string]()
 	for _, arg := range args[1:] {
 		anoSet, errReply := db.GetSet(string(arg))
 		if errReply != nil {
@@ -307,7 +307,7 @@ func execSDiffStore(db *redis.Database, args _type.Args) _interface.Reply {
 		return reply.MakeIntReply(0)
 	}
 	// 求其余set的并集，然后在求差集，可提高效率
-	unionSet := Set.MakeSimpleSet[string]()
+	unionSet := Set.NewSimpleSet[string]()
 	for _, arg := range args[2:] {
 		anoSet, errReply := db.GetSet(string(arg))
 		if errReply != nil {

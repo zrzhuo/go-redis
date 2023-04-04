@@ -30,13 +30,13 @@ func MakeServer() *Server {
 	}
 	server.databases = make([]*atomic.Value, dbNum)
 	for i := range server.databases {
-		db := MakeDatabase(i)
+		db := NewDatabase(i)
 		holder := &atomic.Value{}
 		holder.Store(db)
 		server.databases[i] = holder
 	}
 	// pub/sub
-	server.pubsub = MakePubsub()
+	server.pubsub = NewPubsub()
 	// AOF持久化
 	if Config.Appendonly {
 		filename, fsync := Config.Appendfilename, Config.Appendfsync
@@ -66,7 +66,7 @@ func MakeFakeServer() *Server {
 	}
 	server.databases = make([]*atomic.Value, dbNum)
 	for i := range server.databases {
-		db := MakeSimpleDatabase(i)
+		db := NewSimpleDatabase(i)
 		holder := &atomic.Value{}
 		holder.Store(db)
 		server.databases[i] = holder

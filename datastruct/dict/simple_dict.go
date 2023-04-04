@@ -5,7 +5,7 @@ type SimpleDict[K comparable, V any] struct {
 	m map[K]V
 }
 
-func MakeSimpleDict[K comparable, V any]() *SimpleDict[K, V] {
+func NewSimpleDict[K comparable, V any]() *SimpleDict[K, V] {
 	return &SimpleDict[K, V]{make(map[K]V)}
 }
 
@@ -182,5 +182,5 @@ func (dict *SimpleDict[K, V]) Clear() {
 	//for key := range dict.m {
 	//	delete(dict.m, key)
 	//}
-	*dict = *MakeSimpleDict[K, V]()
+	*dict = *NewSimpleDict[K, V]()
 }

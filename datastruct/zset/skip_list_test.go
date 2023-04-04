@@ -27,7 +27,7 @@ var comp = func(a string, b string) int {
 }
 
 func TestSkipList_Insert(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 1000; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -35,7 +35,7 @@ func TestSkipList_Insert(t *testing.T) {
 }
 
 func TestSkipList_Remove(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -46,7 +46,7 @@ func TestSkipList_Remove(t *testing.T) {
 }
 
 func TestSkipList_RemoveRangeByScore(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -58,7 +58,7 @@ func TestSkipList_RemoveRangeByScore(t *testing.T) {
 }
 
 func TestSkipList_RemoveRangeByRank(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -70,7 +70,7 @@ func TestSkipList_RemoveRangeByRank(t *testing.T) {
 }
 
 func TestSkipList_GetRank(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -80,7 +80,7 @@ func TestSkipList_GetRank(t *testing.T) {
 }
 
 func TestSkipList_GetNode(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -90,7 +90,7 @@ func TestSkipList_GetNode(t *testing.T) {
 	}
 }
 func TestSkipList_GetNodeByRank(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -101,7 +101,7 @@ func TestSkipList_GetNodeByRank(t *testing.T) {
 }
 
 func TestSkipList_FirstInRange(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -109,7 +109,7 @@ func TestSkipList_FirstInRange(t *testing.T) {
 }
 
 func TestSkipList_LastInRange(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
@@ -117,7 +117,7 @@ func TestSkipList_LastInRange(t *testing.T) {
 }
 
 func TestSkipList_CountRange(t *testing.T) {
-	sl := MakeSkiplist[string](comp)
+	sl := NewSkiplist[string](comp)
 	for i := 0; i < 10; i++ {
 		sl.Insert(strconv.FormatInt(int64(i), 10), float64(i))
 	}
