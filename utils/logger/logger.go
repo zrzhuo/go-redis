@@ -43,7 +43,7 @@ const (
 const flags = log.LstdFlags
 
 func init() {
-	logger = log.New(os.Stdout, defaultPrefix, flags)
+	logger = log.New(os.Stdout, defaultPrefix, flags) // 默认
 }
 
 // Setup initializes logger
@@ -57,10 +57,10 @@ func Setup(settings *Settings) {
 
 	logFile, err = mustOpen(fileName, dir)
 	if err != nil {
-		log.Fatalf("logging.Setup err: %s", err)
+		log.Fatalf("logger.Setup err: %s", err)
 	}
 
-	mw := io.MultiWriter(os.Stdout, logFile)
+	mw := io.MultiWriter(os.Stdout, logFile) // 同时向stdout和日志文件写日志
 	logger = log.New(mw, defaultPrefix, flags)
 }
 
