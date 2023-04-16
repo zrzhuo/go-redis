@@ -12,10 +12,10 @@ func main() {
 	redis.InitConfig("redis.conf") // 从redis.conf中读取配置
 	address := fmt.Sprintf("%s:%d", redis.Config.Bind, redis.Config.Port)
 	handler := tcp.NewHandler()
-	server := tcp.NewTcpServer(address, handler)
+	server := tcp.NewServer(address, handler)
+	// 开启服务
 	err := server.Start()
 	if err != nil {
-		logger.Error(err)
-		return
+		logger.Fatal(err)
 	}
 }

@@ -18,7 +18,7 @@ type Server struct {
 	signalCh chan os.Signal
 }
 
-func NewTcpServer(address string, handler _interface.Handler) *Server {
+func NewServer(address string, handler _interface.Handler) *Server {
 	return &Server{
 		address:  address,
 		handler:  handler,
@@ -30,7 +30,6 @@ func NewTcpServer(address string, handler _interface.Handler) *Server {
 // Start 开启服务
 func (server *Server) Start() error {
 	signal.Notify(server.signalCh, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
-
 	// 开启goroutine，用于监听并处理signal
 	go func() {
 		sig := <-server.signalCh
@@ -41,17 +40,21 @@ func (server *Server) Start() error {
 	}()
 
 	// 创建listener
-	listener, err := net.Listen("tcp", server.address)
+	tcpAddr, err := net.ResolveTCPAddr("tcp", server.address)
+	if err != nil {
+		return err
+	}
+	tcpListener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return err
 	}
 	logger.Info(fmt.Sprintf("bind %s successful, start listening...", server.address))
-	server.ListenAndServe(listener)
+	server.ListenAndServe(tcpListener)
 	return nil
 }
 
 // ListenAndServe 监听并服务
-func (server *Server) ListenAndServe(listener net.Listener) {
+func (server *Server) ListenAndServe(tcpListener *net.TCPListener) {
 	errorCh := make(chan error) // 用于监听error
 	defer close(errorCh)
 
@@ -64,29 +67,25 @@ func (server *Server) ListenAndServe(listener net.Listener) {
 			logger.Info(fmt.Sprintf("accept error: %s, shutting down...\n", er.Error()))
 		}
 		// close
-		_ = listener.Close()
+		_ = tcpListener.Close()
 		_ = server.handler.Close()
 	}()
 
 	// 监听并服务
 	var wait sync.WaitGroup
 	for {
-		tcpConn, err := listener.Accept()
+		tcpConn, err := tcpListener.AcceptTCP()
 		if err != nil {
 			errorCh <- err // 出现error，写入errorCh
 			break
 		}
 		logger.Info(fmt.Sprintf("accept new connection from %s", tcpConn.RemoteAddr().String()))
-		wait.Add(1)
 		// 开启goroutine，用于handle该连接
+		wait.Add(1)
 		go func() {
-			defer func() {
-				wait.Done()
-			}()
+			defer wait.Done()
 			server.handler.Handle(tcpConn) // handle
 		}()
 	}
-
-	// 等待所有连接都handle完毕
-	wait.Wait()
+	wait.Wait() // 等待所有连接都handle完毕
 }

@@ -81,7 +81,7 @@ func (handler *Handler) Handle(conn net.Conn) {
 }
 
 func (handler *Handler) Close() error {
-	logger.Info("handler shutting down...")
+	logger.Info("handler closing...")
 	handler.closing.Set(true) // 设置为closing状态
 	handler.clients.Range(func(key any, val any) bool {
 		client := key.(*redis.Client)
@@ -92,6 +92,7 @@ func (handler *Handler) Close() error {
 		return true
 	})
 	handler.server.Close() // 关闭数据库
+	logger.Info("handler closed successfully.")
 	return nil
 }
 
