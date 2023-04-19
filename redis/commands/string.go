@@ -100,9 +100,9 @@ func execSet(db *redis.Database, args _type.Args) _interface.Reply {
 		} else {
 			db.Persist(key)
 		}
-		return Reply.MakeOkReply()
+		return Reply.NewOkReply()
 	}
-	return Reply.MakeNilBulkReply()
+	return Reply.NewNilBulkReply()
 }
 
 func execSetNX(db *redis.Database, args _type.Args) _interface.Reply {
@@ -110,7 +110,7 @@ func execSetNX(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(args[1])
 	result := db.PutIfAbsent(key, entity)
 	db.ToAOF(utils.ToCmd("SetNX", args...))
-	return Reply.MakeIntReply(int64(result))
+	return Reply.NewIntegerReply(int64(result))
 }
 
 func execSetEX(db *redis.Database, args _type.Args) _interface.Reply {
@@ -130,7 +130,7 @@ func execSetEX(db *redis.Database, args _type.Args) _interface.Reply {
 	// expire
 	db.SetExpire(key, expireTime)
 	db.ToAOF(utils.ToExpireCmd(key, expireTime))
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execGet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -140,9 +140,9 @@ func execGet(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if val == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
-	return Reply.MakeBulkReply(val)
+	return Reply.NewBulkReply(val)
 }
 
 func execGetEX(db *redis.Database, args _type.Args) _interface.Reply {
@@ -152,7 +152,7 @@ func execGetEX(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if val == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	// 解析过期策略和过期时间
 	flag := false // 只能存在一个EX、PX、EXAT、PXAT、PERSIST
@@ -219,7 +219,7 @@ func execGetEX(db *redis.Database, args _type.Args) _interface.Reply {
 		db.SetExpire(key, expireTime)
 		db.ToAOF(utils.ToExpireCmd(key, expireTime))
 	}
-	return Reply.MakeBulkReply(val)
+	return Reply.NewBulkReply(val)
 }
 
 func execGetSet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -233,9 +233,9 @@ func execGetSet(db *redis.Database, args _type.Args) _interface.Reply {
 	db.Persist(key)                       // persist
 	db.ToAOF(utils.ToCmd("Set", args...)) // aof
 	if oldVal == nil {
-		return Reply.MakeNilBulkReply() // 旧值不存在
+		return Reply.NewNilBulkReply() // 旧值不存在
 	}
-	return Reply.MakeBulkReply(oldVal) // 返回旧值
+	return Reply.NewBulkReply(oldVal) // 返回旧值
 }
 
 func execGetDel(db *redis.Database, args _type.Args) _interface.Reply {
@@ -245,11 +245,11 @@ func execGetDel(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if val == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	db.Remove(key)
 	db.ToAOF(utils.ToCmd("Del", args...))
-	return Reply.MakeBulkReply(val)
+	return Reply.NewBulkReply(val)
 }
 
 func execStrLen(db *redis.Database, args _type.Args) _interface.Reply {
@@ -259,9 +259,9 @@ func execStrLen(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if val == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
-	return Reply.MakeIntReply(int64(len(val)))
+	return Reply.NewIntegerReply(int64(len(val)))
 }
 
 func execAppend(db *redis.Database, args _type.Args) _interface.Reply {
@@ -274,7 +274,7 @@ func execAppend(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(val)
 	db.Put(key, entity)
 	db.ToAOF(utils.ToCmd("append", args...))
-	return Reply.MakeIntReply(int64(len(val)))
+	return Reply.NewIntegerReply(int64(len(val)))
 }
 
 func execMSet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -287,7 +287,7 @@ func execMSet(db *redis.Database, args _type.Args) _interface.Reply {
 		db.Put(key, entity)
 	}
 	db.ToAOF(utils.ToCmd("MSet", args...))
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execMSetNX(db *redis.Database, args _type.Args) _interface.Reply {
@@ -299,7 +299,7 @@ func execMSetNX(db *redis.Database, args _type.Args) _interface.Reply {
 		key := string(args[2*i])
 		_, existed := db.Get(key)
 		if existed {
-			return Reply.MakeIntReply(0)
+			return Reply.NewIntegerReply(0)
 		}
 	}
 	// put所有key
@@ -309,7 +309,7 @@ func execMSetNX(db *redis.Database, args _type.Args) _interface.Reply {
 		db.Put(key, entity)
 	}
 	db.ToAOF(utils.ToCmd("MSetNX", args...))
-	return Reply.MakeIntReply(1)
+	return Reply.NewIntegerReply(1)
 }
 
 func execMGet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -327,7 +327,7 @@ func execMGet(db *redis.Database, args _type.Args) _interface.Reply {
 		}
 		result[i] = val
 	}
-	return Reply.MakeArrayReply(result)
+	return Reply.NewArrayReply(result)
 }
 
 func execGetRange(db *redis.Database, args _type.Args) _interface.Reply {
@@ -345,13 +345,13 @@ func execGetRange(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if val == nil {
-		return Reply.MakeEmptyBulkReply()
+		return Reply.NewEmptyBulkReply()
 	}
 	left, right := utils.ParseRange(int(start), int(end), len(val))
 	if left < 0 {
-		return Reply.MakeEmptyBulkReply()
+		return Reply.NewEmptyBulkReply()
 	}
-	return Reply.MakeBulkReply(val[left : right+1])
+	return Reply.NewBulkReply(val[left : right+1])
 }
 
 func execSetRange(db *redis.Database, args _type.Args) _interface.Reply {
@@ -383,7 +383,7 @@ func execSetRange(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(newVal)
 	db.Put(key, entity)
 	db.ToAOF(utils.ToCmd("SetRange", args...))
-	return Reply.MakeIntReply(int64(len(newVal)))
+	return Reply.NewIntegerReply(int64(len(newVal)))
 }
 
 func execIncr(db *redis.Database, args _type.Args) _interface.Reply {
@@ -406,7 +406,7 @@ func execIncr(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(val)
 	db.Put(key, entity)
 	db.ToAOF(utils.ToCmd("Incr", args...))
-	return Reply.MakeIntReply(newVal)
+	return Reply.NewIntegerReply(newVal)
 }
 
 func execIncrBy(db *redis.Database, args _type.Args) _interface.Reply {
@@ -433,7 +433,7 @@ func execIncrBy(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(val)
 	db.Put(key, entity)
 	db.ToAOF(utils.ToCmd("IncrBy", args...))
-	return Reply.MakeIntReply(newVal)
+	return Reply.NewIntegerReply(newVal)
 }
 
 func execIncrByFloat(db *redis.Database, args _type.Args) _interface.Reply {
@@ -460,7 +460,7 @@ func execIncrByFloat(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(val)
 	db.Put(key, entity)
 	db.ToAOF(utils.ToCmd("IncrByFloat", args...))
-	return Reply.MakeBulkReply(val)
+	return Reply.NewBulkReply(val)
 }
 
 func execDecr(db *redis.Database, args _type.Args) _interface.Reply {
@@ -483,7 +483,7 @@ func execDecr(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(val)
 	db.Put(key, entity)
 	db.ToAOF(utils.ToCmd("Incr", args...))
-	return Reply.MakeIntReply(newVal)
+	return Reply.NewIntegerReply(newVal)
 }
 
 func execDecrBy(db *redis.Database, args _type.Args) _interface.Reply {
@@ -510,5 +510,5 @@ func execDecrBy(db *redis.Database, args _type.Args) _interface.Reply {
 	entity := _type.NewEntity(val)
 	db.Put(key, entity)
 	db.ToAOF(utils.ToCmd("DecrBy", args...))
-	return Reply.MakeIntReply(newVal)
+	return Reply.NewIntegerReply(newVal)
 }

@@ -125,7 +125,7 @@ func (pst *Persister) WriteAOF(msg *aofMsg) {
 	if msg.dbIdx != pst.dbIdx {
 		// 写入一个"Select db"命令
 		cmdLine := utils.ToCmd("SELECT", []byte(strconv.Itoa(msg.dbIdx)))
-		data := Reply.MakeArrayReply(cmdLine).ToBytes()
+		data := Reply.NewArrayReply(cmdLine).ToBytes()
 		_, err := pst.file.Write(data) // 写入
 		if err != nil {
 			logger.Warn(err)
@@ -134,7 +134,7 @@ func (pst *Persister) WriteAOF(msg *aofMsg) {
 		pst.dbIdx = msg.dbIdx // 修改pst针对的db
 	}
 	// 写入当前命令
-	data := Reply.MakeArrayReply(msg.cmdLine).ToBytes()
+	data := Reply.NewArrayReply(msg.cmdLine).ToBytes()
 	_, err := pst.file.Write(data) // 写入
 	if err != nil {
 		logger.Warn(err)
@@ -185,14 +185,14 @@ func (pst *Persister) ReadAOF(size int64) {
 			continue
 		}
 		// 若为"select"命令，更新dbIdx
-		if strings.ToLower(string(cmd.Args[0])) == "select" {
-			dbIdx, err := strconv.Atoi(string(cmd.Args[1]))
+		if strings.ToLower(string(cmd.Bulks[0])) == "select" {
+			dbIdx, err := strconv.Atoi(string(cmd.Bulks[1]))
 			if err == nil {
 				pst.dbIdx = dbIdx
 			}
 		}
 		// 执行命令
-		reply := pst.server.ExecForAOF(aofConn, cmd.Args)
+		reply := pst.server.ExecForAOF(aofConn, cmd.Bulks)
 		if Reply.IsErrorReply(reply) {
 			logger.Error("execute error: ", string(reply.ToBytes()))
 		}

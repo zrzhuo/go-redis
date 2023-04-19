@@ -132,7 +132,7 @@ func listToCmd(key string, list List.List[[]byte]) *Reply.ArrayReply {
 	for i, val := range vals {
 		cmdLine[i+2] = val
 	}
-	return Reply.MakeArrayReply(cmdLine)
+	return Reply.NewArrayReply(cmdLine)
 }
 
 func setToCmd(key string, set Set.Set[string]) *Reply.ArrayReply {
@@ -144,7 +144,7 @@ func setToCmd(key string, set Set.Set[string]) *Reply.ArrayReply {
 		cmdLine[i+2] = []byte(val)
 	}
 
-	return Reply.MakeArrayReply(cmdLine)
+	return Reply.NewArrayReply(cmdLine)
 }
 
 func zSetToCmd(key string, zset ZSet.ZSet[string]) *Reply.ArrayReply {
@@ -159,7 +159,7 @@ func zSetToCmd(key string, zset ZSet.ZSet[string]) *Reply.ArrayReply {
 		return true
 	}
 	zset.ForEach(0, zset.Len(), true, consumer)
-	return Reply.MakeArrayReply(args)
+	return Reply.NewArrayReply(args)
 }
 
 func hashToCmd(key string, hash Dict.Dict[string, []byte]) *Reply.ArrayReply {
@@ -174,5 +174,5 @@ func hashToCmd(key string, hash Dict.Dict[string, []byte]) *Reply.ArrayReply {
 		return true
 	}
 	hash.ForEach(consumer)
-	return Reply.MakeArrayReply(args)
+	return Reply.NewArrayReply(args)
 }

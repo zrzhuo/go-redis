@@ -6,9 +6,9 @@ type PongReply struct{}
 
 var pongReply = &PongReply{}
 
-var pongBytes = []byte("+PONG" + CRLF)
+var pongBytes = []byte("+PONG\r\n")
 
-func MakePongReply() *PongReply {
+func NewPongReply() *PongReply {
 	return pongReply
 }
 
@@ -22,9 +22,9 @@ type OkReply struct{}
 
 var okReply = &OkReply{}
 
-var okBytes = []byte("+OK" + CRLF)
+var okBytes = []byte("+OK\r\n")
 
-func MakeOkReply() *OkReply {
+func NewOkReply() *OkReply {
 	return okReply
 }
 
@@ -38,9 +38,9 @@ type NilBulkReply struct{}
 
 var nilBulkReply = &NilBulkReply{}
 
-var nilBulkBytes = []byte("$-1" + CRLF)
+var nilBulkBytes = []byte("$-1\r\n")
 
-func MakeNilBulkReply() *NilBulkReply {
+func NewNilBulkReply() *NilBulkReply {
 	return nilBulkReply
 }
 
@@ -50,18 +50,18 @@ func (r *NilBulkReply) ToBytes() []byte {
 
 /* ---- Empty Bulk String Reply ---- */
 
-type NoReply struct{}
+type EmptyReply struct{}
 
-var noReply = &NoReply{}
+var emptyReply = &EmptyReply{}
 
-var noBytes = []byte("")
+var emptyBytes = []byte("$0\r\n\r\n")
 
-func MakeEmptyBulkReply() *NoReply {
-	return noReply
+func NewEmptyBulkReply() *EmptyReply {
+	return emptyReply
 }
 
-func (r *NoReply) ToBytes() []byte {
-	return noBytes
+func (r *EmptyReply) ToBytes() []byte {
+	return emptyBytes
 }
 
 /* ---- Empty Array Reply ---- */
@@ -70,9 +70,9 @@ type EmptyArrayReply struct{}
 
 var emptyArrayReply = &EmptyArrayReply{}
 
-var emptyArrayBytes = []byte("*0" + CRLF)
+var emptyArrayBytes = []byte("*0\r\n")
 
-func MakeEmptyArrayReply() *EmptyArrayReply {
+func NewEmptyArrayReply() *EmptyArrayReply {
 	return emptyArrayReply
 }
 
@@ -86,9 +86,9 @@ type QueuedReply struct{}
 
 var queuedReply = &QueuedReply{}
 
-var queuedBytes = []byte("+QUEUED" + CRLF)
+var queuedBytes = []byte("+QUEUED\r\n")
 
-func MakeQueuedReply() *QueuedReply {
+func NewQueuedReply() *QueuedReply {
 	return queuedReply
 }
 

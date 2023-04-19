@@ -95,7 +95,7 @@ func (parser *Parser) parseRESP() {
 			parser.ch <- &Payload{Data: reply}
 		default:
 			args := bytes.Split(line, []byte{' '})
-			reply := Reply.MakeArrayReply(args)
+			reply := Reply.NewArrayReply(args)
 			parser.ch <- &Payload{Data: reply}
 		}
 
@@ -127,7 +127,7 @@ func (parser *Parser) parseNoRESP() {
 			parser.ch <- &Payload{Err: err}
 			continue // 命令行解析错误
 		}
-		reply := Reply.MakeArrayReply(cmdLine)
+		reply := Reply.NewArrayReply(cmdLine)
 		parser.ch <- &Payload{Data: reply}
 	}
 }
@@ -138,14 +138,14 @@ func (parser *Parser) parseInteger(line []byte) error {
 		parser.handleError("illegal number '" + string(line[1:]) + "'")
 		return nil
 	}
-	reply := Reply.MakeIntReply(value)
+	reply := Reply.NewIntegerReply(value)
 	parser.ch <- &Payload{Data: reply}
 	return nil
 }
 
 func (parser *Parser) parseSimpleString(line []byte) error {
 	status := string(line[1:])
-	reply := Reply.MakeStatusReply(status)
+	reply := Reply.NewStringReply(status)
 	parser.ch <- &Payload{Data: reply}
 	return nil
 }
@@ -156,7 +156,7 @@ func (parser *Parser) parseBulkString(header []byte) error {
 		parser.handleError("illegal bulk string header '" + string(header) + "'")
 		return nil
 	} else if size == -1 {
-		reply := Reply.MakeNilBulkReply() // Null Bulk String
+		reply := Reply.NewNilBulkReply() // Null Bulk String
 		parser.ch <- &Payload{Data: reply}
 		return nil
 	} else {
@@ -166,7 +166,7 @@ func (parser *Parser) parseBulkString(header []byte) error {
 			return err
 		}
 		args := body[:len(body)-2] // 去掉末尾的CRLF
-		reply := Reply.MakeBulkReply(args)
+		reply := Reply.NewBulkReply(args)
 		parser.ch <- &Payload{Data: reply}
 		return nil
 	}
@@ -178,7 +178,7 @@ func (parser *Parser) parseMultiBulk(header []byte) error {
 		parser.handleError("illegal multi bulk header '" + string(header[1:]) + "'")
 		return nil
 	} else if size == 0 {
-		reply := Reply.MakeEmptyArrayReply() // Empty Multi Bulk Strings
+		reply := Reply.NewEmptyArrayReply() // Empty Multi Bulk Strings
 		parser.ch <- &Payload{Data: reply}
 		return nil
 	}
@@ -208,7 +208,7 @@ func (parser *Parser) parseMultiBulk(header []byte) error {
 			bulks = append(bulks, body[:len(body)-2]) // 去掉末尾的CRLF
 		}
 	}
-	reply := Reply.MakeArrayReply(bulks)
+	reply := Reply.NewArrayReply(bulks)
 	parser.ch <- &Payload{Data: reply}
 	return nil
 }

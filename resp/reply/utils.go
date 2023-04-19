@@ -4,7 +4,7 @@ import _interface "go-redis/interface"
 
 func StringToBulkReply(arg string) *BulkReply {
 	return &BulkReply{
-		Arg: []byte(arg),
+		Bulk: []byte(arg),
 	}
 }
 
@@ -13,7 +13,7 @@ func StringToArrayReply(lines ...string) *ArrayReply {
 	for i, line := range lines {
 		args[i] = []byte(line)
 	}
-	return MakeArrayReply(args)
+	return NewArrayReply(args)
 }
 
 func IsOKReply(reply _interface.Reply) bool {

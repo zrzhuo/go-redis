@@ -41,7 +41,7 @@ func execSleep(server *Server, client _interface.Client, args _type.Args) _inter
 		return Reply.StandardError("illegal integer.")
 	}
 	time.Sleep(time.Duration(st) * time.Second)
-	return Reply.MakeStatusReply("sleep over")
+	return Reply.NewStringReply("sleep over")
 }
 
 /* ---- base ---- */
@@ -49,10 +49,10 @@ func execSleep(server *Server, client _interface.Client, args _type.Args) _inter
 func execPing(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	size := len(args)
 	if size == 0 {
-		return Reply.MakePongReply()
+		return Reply.NewPongReply()
 	}
 	if size == 1 {
-		return Reply.MakeStatusReply(string(args[0]))
+		return Reply.NewStringReply(string(args[0]))
 	}
 	return Reply.ArgNumError("Ping")
 }
@@ -66,7 +66,7 @@ func execAuth(server *Server, client _interface.Client, args _type.Args) _interf
 	if password != Config.Requirepass {
 		return Reply.StandardError("invalid password.")
 	}
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execSelect(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
@@ -79,7 +79,7 @@ func execSelect(server *Server, client _interface.Client, args _type.Args) _inte
 		return Reply.StandardError(msg)
 	}
 	client.SetSelectDB(dbIdx) // 修改client的dbIdx
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 /* ---- Config ---- */
@@ -126,7 +126,7 @@ func execConfigSet(server *Server, client _interface.Client, args _type.Args) _i
 			return Reply.StandardError(err.Error())
 		}
 	}
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 /* ---- flush ---- */
@@ -136,7 +136,7 @@ func execFlushDB(server *Server, client _interface.Client, args _type.Args) _int
 	db := server.getDatabase(dbIdx)
 	db.Flush()
 	db.ToAOF(utils.ToCmd("flushdb", []byte(strconv.Itoa(dbIdx))))
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execFlushAll(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
@@ -147,7 +147,7 @@ func execFlushAll(server *Server, client _interface.Client, args _type.Args) _in
 			db.ToAOF(utils.ToCmd("flushall"))
 		}
 	}
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 /* ---- pub/sub ---- */
@@ -185,14 +185,14 @@ func execReWriteAOF(server *Server, client _interface.Client, args _type.Args) _
 	if err != nil {
 		return Reply.StandardError(err.Error())
 	}
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execBGReWriteAOF(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	go func() {
 		_ = server.persister.ReWrite()
 	}()
-	return Reply.MakeStatusReply("background aof rewriting started")
+	return Reply.NewStringReply("background aof rewriting started")
 }
 
 /* ---- transaction ---- */
@@ -209,12 +209,12 @@ func execWatch(server *Server, client _interface.Client, args _type.Args) _inter
 		version := db.GetVersion(key)
 		client.SetWatchKey(dbIdx, key, version)
 	}
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execUnWatch(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	client.DestroyWatch()
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execMulti(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
@@ -222,7 +222,7 @@ func execMulti(server *Server, client _interface.Client, args _type.Args) _inter
 		return Reply.StandardError("MULTI calls can not be nested")
 	}
 	client.SetTxState(true)
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execExec(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
@@ -242,7 +242,7 @@ func execExec(server *Server, client _interface.Client, args _type.Args) _interf
 		for key, version := range keys {
 			currVersion := db.GetVersion(key)
 			if version != currVersion {
-				return Reply.MakeNilBulkReply() // 已被修改，放弃事务执行
+				return Reply.NewNilBulkReply() // 已被修改，放弃事务执行
 			}
 		}
 	}
@@ -257,7 +257,7 @@ func execExec(server *Server, client _interface.Client, args _type.Args) _interf
 		reply := server.ExecForTX(client, cmdLine) // 执行当前命令（无需加锁）
 		replies = append(replies, reply)
 	}
-	return Reply.MakeRawArrayReply(replies)
+	return Reply.NewRawArrayReply(replies)
 }
 func execDiscard(server *Server, client _interface.Client, args _type.Args) _interface.Reply {
 	if !client.IsTxState() {
@@ -266,5 +266,5 @@ func execDiscard(server *Server, client _interface.Client, args _type.Args) _int
 	client.SetTxState(false)
 	client.ClearTxQueue()
 	client.DestroyWatch()
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }

@@ -178,7 +178,7 @@ func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) 
 			return errReply
 		}
 		client.EnTxQueue(cmdLine)
-		return Reply.MakeQueuedReply()
+		return Reply.NewQueuedReply()
 	}
 	// database command
 	cmd, ok := CmdRouter[name]
@@ -190,7 +190,7 @@ func (server *Server) handleTX(client _interface.Client, cmdLine _type.CmdLine) 
 			return errReply
 		}
 		client.EnTxQueue(cmdLine)
-		return Reply.MakeQueuedReply()
+		return Reply.NewQueuedReply()
 	}
 	// unknown command
 	errReply := Reply.StandardError("unknown command '" + name + "'")

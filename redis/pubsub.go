@@ -44,7 +44,7 @@ func (ps *Pubsub) Subscribe(client _interface.Client, channels []string) _interf
 		reply := Reply.StringToArrayReply("subscribe", channel)
 		_, _ = client.Write(reply.ToBytes())
 	}
-	return Reply.MakeEmptyBulkReply()
+	return Reply.NewEmptyBulkReply()
 }
 
 func (ps *Pubsub) UnSubscribe(client _interface.Client, channels []string) _interface.Reply {
@@ -74,7 +74,7 @@ func (ps *Pubsub) UnSubscribe(client _interface.Client, channels []string) _inte
 		reply := Reply.StringToArrayReply("unsubscribe", channel, strconv.Itoa(client.ChannelsCount()))
 		_, _ = client.Write(reply.ToBytes())
 	}
-	return Reply.MakeEmptyBulkReply()
+	return Reply.NewEmptyBulkReply()
 }
 
 func (ps *Pubsub) Publish(client _interface.Client, channel string, message []byte) _interface.Reply {
@@ -83,7 +83,7 @@ func (ps *Pubsub) Publish(client _interface.Client, channel string, message []by
 	defer ps.locker.UnLock(channel)
 	subscribers, ok := ps.table.Get(channel)
 	if !ok {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	respFunc := func(i int, client _interface.Client) bool {
 		reply := Reply.StringToArrayReply("message", channel, string(message))
@@ -91,5 +91,5 @@ func (ps *Pubsub) Publish(client _interface.Client, channel string, message []by
 		return true
 	}
 	subscribers.ForEach(respFunc)
-	return Reply.MakeIntReply(int64(subscribers.Len()))
+	return Reply.NewIntegerReply(int64(subscribers.Len()))
 }

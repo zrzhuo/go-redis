@@ -40,7 +40,7 @@ func execExists(db *redis.Database, args _type.Args) _interface.Reply {
 			count++
 		}
 	}
-	return Reply.MakeIntReply(count)
+	return Reply.NewIntegerReply(count)
 }
 
 func execDel(db *redis.Database, args _type.Args) _interface.Reply {
@@ -52,7 +52,7 @@ func execDel(db *redis.Database, args _type.Args) _interface.Reply {
 	if count > 0 {
 		db.ToAOF(utils.ToCmd("Del", args...))
 	}
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
@@ -63,13 +63,13 @@ func execExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(0) // key不存在，返回0
+		return Reply.NewIntegerReply(0) // key不存在，返回0
 	}
 	ttl := time.Duration(ttlArg) * time.Second // 以秒为单位
 	expireTime := time.Now().Add(ttl)
 	db.SetExpire(key, expireTime)
 	db.ToAOF(utils.ToExpireCmd(key, expireTime))
-	return Reply.MakeIntReply(1) // 设置成功，返回1
+	return Reply.NewIntegerReply(1) // 设置成功，返回1
 }
 
 func execPExpire(db *redis.Database, args _type.Args) _interface.Reply {
@@ -80,13 +80,13 @@ func execPExpire(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(0) // key不存在，返回0
+		return Reply.NewIntegerReply(0) // key不存在，返回0
 	}
 	ttl := time.Duration(ttlArg) * time.Millisecond // 以毫秒为单位
 	expireTime := time.Now().Add(ttl)
 	db.SetExpire(key, expireTime)
 	db.ToAOF(utils.ToExpireCmd(key, expireTime))
-	return Reply.MakeIntReply(1) // 设置成功，返回1
+	return Reply.NewIntegerReply(1) // 设置成功，返回1
 }
 
 func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
@@ -97,12 +97,12 @@ func execExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(0) // key不存在，返回0
+		return Reply.NewIntegerReply(0) // key不存在，返回0
 	}
 	expireTime := time.Unix(ttl, 0) // 以秒为单位的unix时间
 	db.SetExpire(key, expireTime)
 	db.ToAOF(utils.ToExpireCmd(key, expireTime))
-	return Reply.MakeIntReply(1) // 设置成功，返回1
+	return Reply.NewIntegerReply(1) // 设置成功，返回1
 }
 
 func execPExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
@@ -113,99 +113,99 @@ func execPExpireAt(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(0) // key不存在，返回0
+		return Reply.NewIntegerReply(0) // key不存在，返回0
 	}
 	expireTime := time.Unix(0, ttl*int64(time.Millisecond)) // 以毫秒为单位的unix时间
 	db.SetExpire(key, expireTime)
 	db.ToAOF(utils.ToExpireCmd(key, expireTime))
-	return Reply.MakeIntReply(1) // 设置成功，返回1
+	return Reply.NewIntegerReply(1) // 设置成功，返回1
 }
 
 func execTTL(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
+		return Reply.NewIntegerReply(-2) // key不存在(或已过期)，返回0
 	}
 	expireTime, existed := db.GetExpireTime(key)
 	if !existed {
-		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
+		return Reply.NewIntegerReply(-1) // key存在但未设置过期时间，返回-1
 	}
 	ttl := expireTime.Sub(time.Now())
-	return Reply.MakeIntReply(int64(ttl / time.Second)) // 返回过期时间，以秒为单位
+	return Reply.NewIntegerReply(int64(ttl / time.Second)) // 返回过期时间，以秒为单位
 }
 
 func execPTTL(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
+		return Reply.NewIntegerReply(-2) // key不存在(或已过期)，返回0
 	}
 	expireTime, existed := db.GetExpireTime(key)
 	if !existed {
-		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
+		return Reply.NewIntegerReply(-1) // key存在但未设置过期时间，返回-1
 	}
 	ttl := expireTime.Sub(time.Now())
-	return Reply.MakeIntReply(int64(ttl / time.Millisecond)) // 返回过期时间，以毫秒为单位
+	return Reply.NewIntegerReply(int64(ttl / time.Millisecond)) // 返回过期时间，以毫秒为单位
 }
 
 func execExpireTime(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
+		return Reply.NewIntegerReply(-2) // key不存在(或已过期)，返回0
 	}
 	expireTime, existed := db.GetExpireTime(key)
 	if !existed {
-		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
+		return Reply.NewIntegerReply(-1) // key存在但未设置过期时间，返回-1
 	}
-	return Reply.MakeIntReply(expireTime.Unix()) // 返回过期时间，以秒为单位的unix时间
+	return Reply.NewIntegerReply(expireTime.Unix()) // 返回过期时间，以秒为单位的unix时间
 }
 func execPExpireTime(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(-2) // key不存在(或已过期)，返回0
+		return Reply.NewIntegerReply(-2) // key不存在(或已过期)，返回0
 	}
 	expireTime, existed := db.GetExpireTime(key)
 	if !existed {
-		return Reply.MakeIntReply(-1) // key存在但未设置过期时间，返回-1
+		return Reply.NewIntegerReply(-1) // key存在但未设置过期时间，返回-1
 	}
-	return Reply.MakeIntReply(expireTime.UnixMilli()) // 返回过期时间，以毫秒为单位的unix时间
+	return Reply.NewIntegerReply(expireTime.UnixMilli()) // 返回过期时间，以毫秒为单位的unix时间
 }
 
 func execPersist(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	_, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeIntReply(0) // key不存在(或已过期)，返回0
+		return Reply.NewIntegerReply(0) // key不存在(或已过期)，返回0
 	}
 	_, existed = db.GetExpireTime(key)
 	if !existed {
-		return Reply.MakeIntReply(0) // key存在但未设置过期时间，返回0
+		return Reply.NewIntegerReply(0) // key存在但未设置过期时间，返回0
 	}
 	db.Persist(key)
 	db.ToAOF(utils.ToCmd("Persist", args...))
-	return Reply.MakeIntReply(1) // 取消过期成功，返回1
+	return Reply.NewIntegerReply(1) // 取消过期成功，返回1
 }
 
 func execType(db *redis.Database, args _type.Args) _interface.Reply {
 	key := string(args[0])
 	entity, existed := db.Get(key)
 	if !existed {
-		return Reply.MakeStatusReply("none")
+		return Reply.NewStringReply("none")
 	}
 	switch entity.Data.(type) {
 	case []byte:
-		return Reply.MakeStatusReply("string")
+		return Reply.NewStringReply("string")
 	case List.List[[]byte]:
-		return Reply.MakeStatusReply("list")
+		return Reply.NewStringReply("list")
 	case Dict.Dict[string, []byte]:
-		return Reply.MakeStatusReply("hash")
+		return Reply.NewStringReply("hash")
 	case Set.Set[string]:
-		return Reply.MakeStatusReply("set")
+		return Reply.NewStringReply("set")
 	case zset.ZSet[string]:
-		return Reply.MakeStatusReply("zset")
+		return Reply.NewStringReply("zset")
 	}
 	return Reply.UnknownError()
 }
@@ -226,7 +226,7 @@ func execRename(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	db.Remove(key) // 移除旧key
 	db.ToAOF(utils.ToCmd("Rename", args...))
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execRenameNx(db *redis.Database, args _type.Args) _interface.Reply {
@@ -237,7 +237,7 @@ func execRenameNx(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	_, existed = db.Get(newKey)
 	if existed {
-		return Reply.MakeIntReply(0) // 新键已存在
+		return Reply.NewIntegerReply(0) // 新键已存在
 	}
 	// 重新设置newKey，旧值被覆盖
 	db.Put(newKey, entity)
@@ -249,9 +249,9 @@ func execRenameNx(db *redis.Database, args _type.Args) _interface.Reply {
 	}
 	db.Remove(key) // 移除旧key
 	db.ToAOF(utils.ToCmd("RenameNX", args...))
-	return Reply.MakeIntReply(1)
+	return Reply.NewIntegerReply(1)
 }
 
 func execKeys(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }

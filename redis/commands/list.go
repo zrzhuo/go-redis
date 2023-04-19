@@ -35,7 +35,7 @@ func execLPush(db *redis.Database, args _type.Args) _interface.Reply {
 		list.LPush(val) // 按顺序插入表头
 	}
 	db.ToAOF(utils.ToCmd("LPush", args...))
-	return Reply.MakeIntReply(int64(list.Len()))
+	return Reply.NewIntegerReply(int64(list.Len()))
 }
 
 func execRPush(db *redis.Database, args _type.Args) _interface.Reply {
@@ -48,7 +48,7 @@ func execRPush(db *redis.Database, args _type.Args) _interface.Reply {
 		list.RPush(val) // 按顺序插入表尾
 	}
 	db.ToAOF(utils.ToCmd("RPush", args...))
-	return Reply.MakeIntReply(int64(list.Len()))
+	return Reply.NewIntegerReply(int64(list.Len()))
 }
 
 func execLPushX(db *redis.Database, args _type.Args) _interface.Reply {
@@ -58,13 +58,13 @@ func execLPushX(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	for _, val := range vals {
 		list.LPush(val) // 按顺序插入表头
 	}
 	db.ToAOF(utils.ToCmd("LPushX", args...))
-	return Reply.MakeIntReply(int64(list.Len()))
+	return Reply.NewIntegerReply(int64(list.Len()))
 }
 func execRPushX(db *redis.Database, args _type.Args) _interface.Reply {
 	key, vals := string(args[0]), args[1:]
@@ -73,13 +73,13 @@ func execRPushX(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	for _, val := range vals {
 		list.RPush(val) // 按顺序插入表头
 	}
 	db.ToAOF(utils.ToCmd("RPushX", args...))
-	return Reply.MakeIntReply(int64(list.Len()))
+	return Reply.NewIntegerReply(int64(list.Len()))
 }
 
 func execLPop(db *redis.Database, args _type.Args) _interface.Reply {
@@ -89,14 +89,14 @@ func execLPop(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	val := list.LPop()
 	if list.Len() == 0 {
 		db.Remove(key) // list已为空，移除该key
 	}
 	db.ToAOF(utils.ToCmd("LPop", args...))
-	return Reply.MakeBulkReply(val)
+	return Reply.NewBulkReply(val)
 }
 
 func execRPop(db *redis.Database, args _type.Args) _interface.Reply {
@@ -106,14 +106,14 @@ func execRPop(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	val := list.RPop()
 	if list.Len() == 0 {
 		db.Remove(key) // list已为空，移除该key
 	}
 	db.ToAOF(utils.ToCmd("RPop", args...))
-	return Reply.MakeBulkReply(val)
+	return Reply.NewBulkReply(val)
 }
 
 func execRPopLPush(db *redis.Database, args _type.Args) _interface.Reply {
@@ -123,7 +123,7 @@ func execRPopLPush(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if srcList == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	destList, _, errReply := db.GetOrInitList(destKey) // 初始化destList
 	if errReply != nil {
@@ -135,7 +135,7 @@ func execRPopLPush(db *redis.Database, args _type.Args) _interface.Reply {
 		db.Remove(srcKey) // list已为空，移除该key
 	}
 	db.ToAOF(utils.ToCmd("RPopLPush", args...))
-	return Reply.MakeBulkReply(val)
+	return Reply.NewBulkReply(val)
 }
 
 func execLLen(db *redis.Database, args _type.Args) _interface.Reply {
@@ -145,10 +145,10 @@ func execLLen(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	size := list.Len()
-	return Reply.MakeIntReply(int64(size))
+	return Reply.NewIntegerReply(int64(size))
 }
 
 func execLSet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -174,7 +174,7 @@ func execLSet(db *redis.Database, args _type.Args) _interface.Reply {
 		index = size + index
 	}
 	list.Set(index, args[2])
-	return Reply.MakeOkReply()
+	return Reply.NewOkReply()
 }
 
 func execLIndex(db *redis.Database, args _type.Args) _interface.Reply {
@@ -188,19 +188,19 @@ func execLIndex(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	size, index := list.Len(), int(idx)
 	// 解析index
 	if index >= size {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	} else if index < -size {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	} else if index < 0 {
 		index = size + index
 	}
 	val := list.Get(index)
-	return Reply.MakeBulkReply(val)
+	return Reply.NewBulkReply(val)
 }
 
 func execLRem(db *redis.Database, args _type.Args) _interface.Reply {
@@ -215,7 +215,7 @@ func execLRem(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	equals := func(val []byte) bool {
 		return bytes.Equal(val, target)
@@ -234,7 +234,7 @@ func execLRem(db *redis.Database, args _type.Args) _interface.Reply {
 	if count > 0 {
 		db.ToAOF(utils.ToCmd("LRem", args...))
 	}
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execLRange(db *redis.Database, args _type.Args) _interface.Reply {
@@ -252,15 +252,15 @@ func execLRange(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if list == nil {
-		return Reply.MakeEmptyArrayReply()
+		return Reply.NewEmptyArrayReply()
 	}
 	left, right := utils.ParseRange(int(first), int(second), list.Len())
 	if left < 0 {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	if right < list.Len() {
 		right = right + 1
 	}
 	vals := list.Range(left, right)
-	return Reply.MakeArrayReply(vals)
+	return Reply.NewArrayReply(vals)
 }

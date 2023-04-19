@@ -48,7 +48,7 @@ func execZAdd(db *redis.Database, args _type.Args) _interface.Reply {
 	if count > 0 {
 		db.ToAOF(utils.ToCmd("ZAdd", args...))
 	}
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execZRem(db *redis.Database, args _type.Args) _interface.Reply {
@@ -58,7 +58,7 @@ func execZRem(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	count := 0
 	for i := 1; i < len(args); i++ {
@@ -68,7 +68,7 @@ func execZRem(db *redis.Database, args _type.Args) _interface.Reply {
 	if count > 0 {
 		db.ToAOF(utils.ToCmd("ZRem", args...))
 	}
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execZRemRangeByRank(db *redis.Database, args _type.Args) _interface.Reply {
@@ -86,17 +86,17 @@ func execZRemRangeByRank(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	left, right := utils.ParseRange(int(start), int(stop), zset.Len())
 	if left < 0 {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	count := zset.RemoveRangeByRank(left, right+1)
 	if count > 0 {
 		db.ToAOF(utils.ToCmd("ZRemRangeByRank", args...))
 	}
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execZRemRangeByScore(db *redis.Database, args _type.Args) _interface.Reply {
@@ -114,13 +114,13 @@ func execZRemRangeByScore(db *redis.Database, args _type.Args) _interface.Reply 
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	count := zset.RemoveRangeByScore(min, max)
 	if count > 0 {
 		db.ToAOF(utils.ToCmd("ZRemRangeByScore", args...))
 	}
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execZCard(db *redis.Database, args _type.Args) _interface.Reply {
@@ -130,9 +130,9 @@ func execZCard(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
-	return Reply.MakeIntReply(int64(zset.Len()))
+	return Reply.NewIntegerReply(int64(zset.Len()))
 }
 
 func execZCount(db *redis.Database, args _type.Args) _interface.Reply {
@@ -150,10 +150,10 @@ func execZCount(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	count := zset.RangeLen(min, max)
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execZScore(db *redis.Database, args _type.Args) _interface.Reply {
@@ -163,14 +163,14 @@ func execZScore(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	score, existed := zset.GetScore(member)
 	if !existed {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	value := strconv.FormatFloat(score, 'f', -1, 64)
-	return Reply.MakeBulkReply([]byte(value))
+	return Reply.NewBulkReply([]byte(value))
 }
 
 func execZRank(db *redis.Database, args _type.Args) _interface.Reply {
@@ -190,12 +190,12 @@ func execZRank(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	rank, ok := zset.GetRank(member, false)
 	if withScore {
 		if !ok {
-			return Reply.MakeEmptyArrayReply()
+			return Reply.NewEmptyArrayReply()
 		}
 		score, _ := zset.GetScore(member)
 		rankStr := strconv.FormatInt(int64(rank), 10)
@@ -203,9 +203,9 @@ func execZRank(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.StringToArrayReply(rankStr, scoreStr)
 	} else {
 		if !ok {
-			return Reply.MakeNilBulkReply()
+			return Reply.NewNilBulkReply()
 		}
-		return Reply.MakeIntReply(int64(rank))
+		return Reply.NewIntegerReply(int64(rank))
 	}
 }
 
@@ -226,12 +226,12 @@ func execZRevRank(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	rank, ok := zset.GetRank(member, true)
 	if withScore {
 		if !ok {
-			return Reply.MakeEmptyArrayReply()
+			return Reply.NewEmptyArrayReply()
 		}
 		score, _ := zset.GetScore(member)
 		rankStr := strconv.FormatInt(int64(rank), 10)
@@ -239,9 +239,9 @@ func execZRevRank(db *redis.Database, args _type.Args) _interface.Reply {
 		return Reply.StringToArrayReply(rankStr, scoreStr)
 	} else {
 		if !ok {
-			return Reply.MakeNilBulkReply()
+			return Reply.NewNilBulkReply()
 		}
-		return Reply.MakeIntReply(int64(rank))
+		return Reply.NewIntegerReply(int64(rank))
 	}
 }
 
@@ -270,11 +270,11 @@ func execZRange(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeEmptyArrayReply()
+		return Reply.NewEmptyArrayReply()
 	}
 	left, right := utils.ParseRange(int(start), int(stop), zset.Len())
 	if left < 0 {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	if withScores {
 		result := make([]string, 2*(right-left))
@@ -326,11 +326,11 @@ func execZRevRange(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if zset == nil {
-		return Reply.MakeEmptyArrayReply()
+		return Reply.NewEmptyArrayReply()
 	}
 	left, right := utils.ParseRange(int(start), int(stop), zset.Len())
 	if left < 0 {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	if withScores {
 		result := make([]string, 2*(right-left))
@@ -358,14 +358,14 @@ func execZRevRange(db *redis.Database, args _type.Args) _interface.Reply {
 }
 
 func execZRangeByScore(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }
 func execZRevRangeByScore(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }
 func execZPopMin(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }
 func execZIncrBy(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }

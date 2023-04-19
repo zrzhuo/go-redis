@@ -69,7 +69,7 @@ func (handler *Handler) Handle(conn net.Conn) {
 			logger.Error("wrong commands line: require multi bulk strings")
 			continue
 		}
-		cmdLine := reply.Args
+		cmdLine := reply.Bulks
 		// 执行命令
 		result := handler.server.ExecCommand(client, cmdLine)
 		if result != nil {

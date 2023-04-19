@@ -16,17 +16,17 @@ func init() {
 }
 
 func execSetBit(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }
 
 func execGetBit(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }
 
 func execBitCount(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }
 
 func execBitPos(db *redis.Database, args _type.Args) _interface.Reply {
-	return Reply.MakeStatusReply("This command is not supported temporarily")
+	return Reply.NewStringReply("This command is not supported temporarily")
 }

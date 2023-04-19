@@ -8,44 +8,92 @@ import (
 
 var CRLF = "\r\n" // RESP定义的换行符
 
-/* ---- Bulk String ---- */
+/* ---- String Reply ---- */
 
-type BulkReply struct {
-	Arg []byte
+type StringReply struct {
+	Content string
 }
 
-func MakeBulkReply(arg []byte) *BulkReply {
+func NewStringReply(content string) *StringReply {
+	return &StringReply{
+		Content: content,
+	}
+}
+
+func (r *StringReply) ToBytes() []byte {
+	return []byte("+" + r.Content + CRLF)
+}
+
+/* ---- Error Reply ---- */
+
+type ErrorReply struct {
+	Error string
+}
+
+func NewErrorReply(err string) *ErrorReply {
+	return &ErrorReply{
+		Error: err,
+	}
+}
+
+func (r *ErrorReply) ToBytes() []byte {
+	return []byte("-ERR: " + r.Error + "\r\n")
+}
+
+/* ---- Integer Reply ---- */
+
+type IntegerReply struct {
+	Integer int64
+}
+
+func NewIntegerReply(integer int64) *IntegerReply {
+	return &IntegerReply{
+		Integer: integer,
+	}
+}
+
+func (r *IntegerReply) ToBytes() []byte {
+	return []byte(":" + strconv.FormatInt(r.Integer, 10) + CRLF)
+}
+
+/* ---- Bulk String Reply---- */
+
+type BulkReply struct {
+	Bulk []byte
+}
+
+func NewBulkReply(bulk []byte) *BulkReply {
 	return &BulkReply{
-		Arg: arg,
+		Bulk: bulk,
 	}
 }
 
 func (r *BulkReply) ToBytes() []byte {
-	if r.Arg == nil {
+	if r.Bulk == nil {
 		return nilBulkBytes
 	}
-	return []byte("$" + strconv.Itoa(len(r.Arg)) + CRLF + string(r.Arg) + CRLF)
+	return []byte("$" + strconv.Itoa(len(r.Bulk)) + CRLF + string(r.Bulk) + CRLF)
 }
 
-/* ---- Array (Multi Bulk Strings) ---- */
+/* ---- Array Reply (multi bulk strings) ---- */
 
 type ArrayReply struct {
-	Args [][]byte
+	Bulks [][]byte
 }
 
-func MakeArrayReply(args [][]byte) *ArrayReply {
+func NewArrayReply(bulks [][]byte) *ArrayReply {
 	return &ArrayReply{
-		Args: args,
+		Bulks: bulks,
 	}
 }
 
 func (r *ArrayReply) ToBytes() []byte {
-	length := len(r.Args)
+	length := len(r.Bulks)
 	var buf bytes.Buffer
 	buf.WriteString("*" + strconv.Itoa(length) + CRLF)
-	for _, arg := range r.Args {
+	for _, arg := range r.Bulks {
 		if arg == nil {
-			buf.WriteString("$-1" + CRLF)
+			buf.Write(nilBulkBytes)
 		} else {
 			buf.WriteString("$" + strconv.Itoa(len(arg)) + CRLF + string(arg) + CRLF)
 		}
@@ -53,13 +101,13 @@ func (r *ArrayReply) ToBytes() []byte {
 	return buf.Bytes()
 }
 
-/* ---- Raw Array (Reply Array)---- */
+/* ---- Raw Array Reply (array of reply) ---- */
 
 type RawArrayReply struct {
 	Replies []_interface.Reply
 }
 
-func MakeRawArrayReply(replies []_interface.Reply) *RawArrayReply {
+func NewRawArrayReply(replies []_interface.Reply) *RawArrayReply {
 	return &RawArrayReply{
 		Replies: replies,
 	}
@@ -73,36 +121,4 @@ func (r *RawArrayReply) ToBytes() []byte {
 		buf.Write(reply.ToBytes())
 	}
 	return buf.Bytes()
-}
-
-/* ---- Status ---- */
-
-type StatusReply struct {
-	Status string
-}
-
-func MakeStatusReply(status string) *StatusReply {
-	return &StatusReply{
-		Status: status,
-	}
-}
-
-func (r *StatusReply) ToBytes() []byte {
-	return []byte("+" + r.Status + CRLF)
-}
-
-/* ---- Int Reply ---- */
-
-type IntReply struct {
-	Code int64
-}
-
-func MakeIntReply(code int64) *IntReply {
-	return &IntReply{
-		Code: code,
-	}
-}
-
-func (r *IntReply) ToBytes() []byte {
-	return []byte(":" + strconv.FormatInt(r.Code, 10) + CRLF)
 }

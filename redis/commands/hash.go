@@ -43,7 +43,7 @@ func execHSet(db *redis.Database, args _type.Args) _interface.Reply {
 	if count > 0 {
 		db.ToAOF(utils.ToCmd("HSet", args...))
 	}
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execHSetNX(db *redis.Database, args _type.Args) _interface.Reply {
@@ -56,7 +56,7 @@ func execHSetNX(db *redis.Database, args _type.Args) _interface.Reply {
 	if result > 0 {
 		db.ToAOF(utils.ToCmd("HSetNX", args...))
 	}
-	return Reply.MakeIntReply(int64(result))
+	return Reply.NewIntegerReply(int64(result))
 }
 
 func execHGet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -66,13 +66,13 @@ func execHGet(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
 	value, existed := dict.Get(field)
 	if !existed {
-		return Reply.MakeNilBulkReply()
+		return Reply.NewNilBulkReply()
 	}
-	return Reply.MakeBulkReply(value)
+	return Reply.NewBulkReply(value)
 }
 
 func execHMGet(db *redis.Database, args _type.Args) _interface.Reply {
@@ -82,7 +82,7 @@ func execHMGet(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeArrayReply(vals)
+		return Reply.NewArrayReply(vals)
 	}
 	for i, arg := range args[1:] {
 		val, existed := dict.Get(string(arg))
@@ -91,7 +91,7 @@ func execHMGet(db *redis.Database, args _type.Args) _interface.Reply {
 		}
 		vals[i] = val
 	}
-	return Reply.MakeArrayReply(vals)
+	return Reply.NewArrayReply(vals)
 }
 
 func execHKeys(db *redis.Database, args _type.Args) _interface.Reply {
@@ -100,7 +100,7 @@ func execHKeys(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeEmptyArrayReply()
+		return Reply.NewEmptyArrayReply()
 	}
 	fields := dict.Keys()
 	return Reply.StringToArrayReply(fields...)
@@ -112,10 +112,10 @@ func execHVals(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeEmptyArrayReply()
+		return Reply.NewEmptyArrayReply()
 	}
 	values := dict.Values()
-	return Reply.MakeArrayReply(values)
+	return Reply.NewArrayReply(values)
 }
 
 func execHGetAll(db *redis.Database, args _type.Args) _interface.Reply {
@@ -124,7 +124,7 @@ func execHGetAll(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeEmptyArrayReply()
+		return Reply.NewEmptyArrayReply()
 	}
 	length := dict.Len()
 	result := make([][]byte, 2*length)
@@ -136,7 +136,7 @@ func execHGetAll(db *redis.Database, args _type.Args) _interface.Reply {
 		return true
 	}
 	dict.ForEach(consumer)
-	return Reply.MakeArrayReply(result)
+	return Reply.NewArrayReply(result)
 }
 
 func execHDel(db *redis.Database, args _type.Args) _interface.Reply {
@@ -146,7 +146,7 @@ func execHDel(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	count := 0
 	for _, arg := range args[1:] {
@@ -158,7 +158,7 @@ func execHDel(db *redis.Database, args _type.Args) _interface.Reply {
 	if count > 0 {
 		db.ToAOF(utils.ToCmd("HDel", args...))
 	}
-	return Reply.MakeIntReply(int64(count))
+	return Reply.NewIntegerReply(int64(count))
 }
 
 func execHLen(db *redis.Database, args _type.Args) _interface.Reply {
@@ -167,9 +167,9 @@ func execHLen(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
-	return Reply.MakeIntReply(int64(dict.Len()))
+	return Reply.NewIntegerReply(int64(dict.Len()))
 }
 
 func execHExists(db *redis.Database, args _type.Args) _interface.Reply {
@@ -179,13 +179,13 @@ func execHExists(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	existed := dict.ContainKey(field)
 	if !existed {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
-	return Reply.MakeIntReply(1)
+	return Reply.NewIntegerReply(1)
 }
 
 func execHStrlen(db *redis.Database, args _type.Args) _interface.Reply {
@@ -195,13 +195,13 @@ func execHStrlen(db *redis.Database, args _type.Args) _interface.Reply {
 		return errReply
 	}
 	if dict == nil {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
 	val, existed := dict.Get(field)
 	if !existed {
-		return Reply.MakeIntReply(0)
+		return Reply.NewIntegerReply(0)
 	}
-	return Reply.MakeIntReply(int64(len(val)))
+	return Reply.NewIntegerReply(int64(len(val)))
 }
 
 func execHRandField(db *redis.Database, args _type.Args) _interface.Reply {
@@ -216,20 +216,20 @@ func execHRandField(db *redis.Database, args _type.Args) _interface.Reply {
 	if dict == nil {
 		switch length {
 		case 1:
-			return Reply.MakeNilBulkReply()
+			return Reply.NewNilBulkReply()
 		case 2:
-			return Reply.MakeEmptyArrayReply()
+			return Reply.NewEmptyArrayReply()
 		case 3:
-			return Reply.MakeEmptyArrayReply()
+			return Reply.NewEmptyArrayReply()
 		}
 	}
 	switch length {
 	case 1:
 		keys := dict.RandomDistinctKeys(1)
 		if len(keys) == 0 {
-			return Reply.MakeNilBulkReply()
+			return Reply.NewNilBulkReply()
 		}
-		return Reply.MakeBulkReply([]byte(keys[0]))
+		return Reply.NewBulkReply([]byte(keys[0]))
 	case 2:
 		number, err := strconv.ParseInt(string(args[1]), 10, 64)
 		if err != nil {
@@ -260,7 +260,7 @@ func execHRandField(db *redis.Database, args _type.Args) _interface.Reply {
 				result[2*i] = []byte(field)
 				result[2*i+1] = value
 			}
-			return Reply.MakeArrayReply(result)
+			return Reply.NewArrayReply(result)
 		} else {
 			result := make([][]byte, -2*count)
 			fields := dict.RandomKeys(-count)
@@ -269,7 +269,7 @@ func execHRandField(db *redis.Database, args _type.Args) _interface.Reply {
 				result[2*i] = []byte(field)
 				result[2*i+1] = value
 			}
-			return Reply.MakeArrayReply(result)
+			return Reply.NewArrayReply(result)
 		}
 	default:
 		return Reply.SyntaxError()
@@ -290,7 +290,7 @@ func execHIncrBy(db *redis.Database, args _type.Args) _interface.Reply {
 	if !existed {
 		dict.Put(field, args[2]) // 相当于0+increment
 		db.ToAOF(utils.ToCmd("HIncrBy", args...))
-		return Reply.MakeIntReply(increment)
+		return Reply.NewIntegerReply(increment)
 	}
 	oldVal, err := strconv.ParseInt(string(value), 10, 64)
 	if err != nil {
@@ -299,7 +299,7 @@ func execHIncrBy(db *redis.Database, args _type.Args) _interface.Reply {
 	newVal := oldVal + increment
 	dict.Put(field, []byte(strconv.FormatInt(newVal, 10)))
 	db.ToAOF(utils.ToCmd("HIncrBy", args...))
-	return Reply.MakeIntReply(newVal)
+	return Reply.NewIntegerReply(newVal)
 }
 
 func execHIncrByFloat(db *redis.Database, args _type.Args) _interface.Reply {
@@ -316,7 +316,7 @@ func execHIncrByFloat(db *redis.Database, args _type.Args) _interface.Reply {
 	if !existed {
 		dict.Put(field, args[2]) // 相当于0+increment
 		db.ToAOF(utils.ToCmd("HIncrByFloat", args...))
-		return Reply.MakeBulkReply(args[2])
+		return Reply.NewBulkReply(args[2])
 	}
 	oldVal, err := strconv.ParseFloat(string(value), 64)
 	if err != nil {
@@ -326,5 +326,5 @@ func execHIncrByFloat(db *redis.Database, args _type.Args) _interface.Reply {
 	value = []byte(strconv.FormatFloat(newVal, 'f', -1, 64))
 	dict.Put(field, value)
 	db.ToAOF(utils.ToCmd("HIncrByFloat", args...))
-	return Reply.MakeBulkReply(value)
+	return Reply.NewBulkReply(value)
 }
